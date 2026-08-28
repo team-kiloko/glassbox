@@ -1,32 +1,41 @@
 # EVENT_FACTS — GlassBox
 
-> Verified facts about the hackathon. Each row is TAGGED by source and must be
-> human-verified against the PRIMARY page before it gates a build decision.
-> This file exists so neither pod re-litigates a rule, and so nobody builds on a guess.
+> Verified facts about the hackathon. Each row is TAGGED by source; a build decision only
+> binds on a `[primary]` ✅ row. Verified 2026-08-28 against the official lablab.ai event page
+> (Jay clipped the page; SAGE cannot fetch lablab.ai directly — it 403s automated requests).
 
-**Provenance tags:** `[primary]` official page · `[secondary]` listing/brief/blog · `[ai-recalled]` unverified memory
-**Status:** ✅ verified against primary · ⚠️ unverified · ❌ found false
+**Provenance:** `[primary]` official page (human-read) · `[secondary]` search/brief · `[ai-recalled]` unverified
+**Status:** ✅ verified against primary · ⚠️ unverified · 🙋 NEEDS-YOU · ❌ found false
 
-| Fact | Value (draft) | Source | Status |
-|------|---------------|--------|--------|
-| Event window | Aug 28 – Sep 4 2026, online | `[secondary]` brief | ⚠️ |
-| Submission deadline | Sep 4, 15:00 UTC | `[secondary]` brief | ⚠️ |
-| Options mandatory? | yes — strategies must incorporate options | `[ai-recalled]` | ⚠️ |
-| Platform | Alpaca Trading API + official MCP server, paper only | `[secondary]` brief | ⚠️ |
-| Prize pool | $6,000 | `[secondary]` brief | ⚠️ |
-| Judging axes | model integration, presentation, practical value, creativity | `[ai-recalled]` | ⚠️ |
-| Repo public from day 1, or at submission? | UNKNOWN | — | ⚠️ |
-| Options market data on free paper tier? | UNKNOWN | — | ⚠️ |
-| Interim checkpoints beyond kickoff / close? | UNKNOWN | — | ⚠️ |
+| Fact | Value | Source | Status |
+|------|-------|--------|--------|
+| Kickoff | Aug 29 2026, 00:00 JST (= Aug 28 15:00 UTC) — opening stream + Discord Q&A at 01:00 JST | `[primary]` schedule | ✅ |
+| Submission deadline | Sep 5 2026, 00:00 JST (= Sep 4 15:00 UTC) — "End of Submissions" | `[primary]` schedule | ✅ |
+| Format | Online, 7 days | `[primary]` | ✅ |
+| Prize pool | $6,000: 🥇$2,500 · 🥈$1,500 · 🥉$1,000; each of 2 winning teams also gets $500 + Algo Trader Plus subs (per member). Paid to individuals; W-9/W-8BEN required. | `[primary]` | ✅ |
+| Team size | 1–6 people | `[primary]` | ✅ |
+| Core req — autonomous agent | Must build an autonomous AI trading agent using Alpaca's Trading API | `[primary]` | ✅ |
+| Core req — MCP or CLI | Must use Alpaca's MCP server **or** its CLI | `[primary]` | ✅ |
+| **Options mandatory?** | **YES** — "all strategies must incorporate options trading" | `[primary]` | ✅ |
+| Judging account | Final submission needs a **brand-new, dedicated** Alpaca paper account. Reused accounts are **ineligible**. | `[primary]` | ✅ |
+| Starting balance | Competition account **must be set to $100,000** | `[primary]` | ✅ |
+| One-page write-up | Required: covers **AI logic, risk gates, Alpaca infrastructure** | `[primary]` | ✅ |
+| **Judging criteria** | **P&L Performance** · Technology Implementation · Creativity & Originality · Presentation & Execution. Plus **Social engagement** (up to 5 X/LinkedIn posts). No public weights. | `[primary]` | ✅ |
+| Deliverables | Title, short/long desc, tags · cover image · **video presentation** · **slide deck** · **public GitHub repo** · demo app platform + **Application URL** · **Alpaca paper account ID** (for P&L eval) | `[primary]` | ✅ |
+| Repo public? | Public GitHub repo required **at submission**. (Private during build is fine.) | `[primary]` | ✅ |
+| License | Submissions must be **original and MIT-compliant** | `[primary]` | ✅ |
+| Paper environment | Simulated funds + real market data; free, no card | `[primary]` | ✅ |
+| Video length | NOT specified on the event page — check the lablab Rule Book (lablab.ai/hackathon-rules) | — | 🙋 |
+| Registration | Must enroll on lablab.ai + join the lablab Discord | `[primary]` | ✅ |
 
-## Verify at kickoff — Aug 28, primary sources only
-1. Formal rules text: are options mandatory as written?
-2. Exact submission deliverables (demo URL, video length, deck)?
-3. Repo public from day 1, or only at submission?
-4. Judging rubric weights — any P&L / returns component?
-5. Options market-data access on the free paper tier?
-6. Prize structure ($6k on site vs a $5k social-post figure)?
-7. Any interim checkpoints beyond kickoff and close?
+## Still to read (not on the main event page)
+- Exact **video length** limit → lablab Rule Book (`lablab.ai/hackathon-rules`).
+- Any partner-prize tech (Technology Partners listed "before kickoff").
 
-> When you verify a row: change its Status to ✅, set the Source to `[primary]` with the URL,
-> and note the check date. A ❌ is as valuable as a ✅ — record it, don't delete the row.
+## Strategic note (moved the plan)
+> **P&L Performance is an explicit judging criterion** and the paper account ID is required so judges
+> can evaluate actual returns. The earlier assumption (from the research note) that "judges can't
+> reward returns in a week" is **false per the primary source.** GlassBox's design still holds — but
+> the agent must actually TRADE and post P&L on the fresh $100k account across the week, not only be
+> auditable. Defined-risk options (premium-collecting spreads / iron condors) suit steady, non-blow-up
+> P&L — but the agent needs to be placing paper trades EARLY, not just at the D6 demo run.
