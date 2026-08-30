@@ -1,0 +1,98 @@
+<svg viewBox="0 0 1200 880" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2563EB"/>
+    </marker>
+    <marker id="arrowRed" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#DC2626"/>
+    </marker>
+  </defs>
+
+  <!-- background -->
+  <rect x="0" y="0" width="1200" height="880" fill="#FAFAF6"/>
+
+  <!-- title -->
+  <text x="600" y="46" text-anchor="middle" font-size="28" font-weight="bold" fill="#1E293B">GlassBox &#183; Follow-the-Sun Handoff</text>
+  <text x="600" y="74" text-anchor="middle" font-size="15" fill="#64748B">team-kiloko &#183; teakeycee (US) + Jhoosier (Japan)</text>
+
+  <!-- HANDOFF B arrow: Tokyo night to US morning -->
+  <path d="M 920 160 C 920 104, 280 104, 280 160" fill="none" stroke="#DC2626" stroke-width="3" marker-end="url(#arrowBlue)"/>
+  <text x="600" y="118" text-anchor="middle" font-size="14" font-weight="bold" fill="#B91C1C">HANDOFF B &#183; Tokyo night, US morning</text>
+  <text x="600" y="137" text-anchor="middle" font-size="12.5" fill="#7F1D1D">Jhoosier prepends CLOSE block, pushes &#183; teakeycee pulls, reads it FIRST, posts OPEN block</text>
+
+  <!-- teakeycee day box -->
+  <rect x="90" y="168" width="380" height="240" rx="14" fill="#EFF6FF" stroke="#2563EB" stroke-width="2.5"/>
+  <circle cx="128" cy="204" r="14" fill="#F59E0B"/>
+  <text x="152" y="210" font-size="17" font-weight="bold" fill="#1D4ED8">TEAKEYCEE'S DAY (US)</text>
+  <text x="114" y="240" font-size="13.5" fill="#334155">His daytime &#183; Tokyo is asleep</text>
+  <text x="114" y="266" font-size="13.5" fill="#334155">1. Pull, read Jhoosier's CLOSE block first</text>
+  <text x="114" y="290" font-size="13.5" fill="#334155">2. Build via Claude + Claude Code relay</text>
+  <text x="114" y="314" font-size="13.5" fill="#334155">3. Merge only modules he currently leads</text>
+  <rect x="108" y="332" width="344" height="30" rx="8" fill="#DBEAFE"/>
+  <text x="280" y="352" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#1E40AF">HOSTS THE RUNNING AGENT while active</text>
+  <text x="114" y="392" font-size="13" fill="#64748B">Day ends: write CLOSE block, commit, push</text>
+
+  <!-- Jhoosier day box -->
+  <rect x="730" y="168" width="380" height="240" rx="14" fill="#FEF2F2" stroke="#DC2626" stroke-width="2.5"/>
+  <circle cx="768" cy="204" r="14" fill="#F59E0B"/>
+  <text x="792" y="210" font-size="17" font-weight="bold" fill="#B91C1C">JHOOSIER'S DAY (JAPAN)</text>
+  <text x="754" y="240" font-size="13.5" fill="#334155">His daytime &#183; the US is asleep</text>
+  <text x="754" y="266" font-size="13.5" fill="#334155">1. Pull, read teakeycee's CLOSE block first</text>
+  <text x="754" y="290" font-size="13.5" fill="#334155">2. Build via his own agent pod</text>
+  <text x="754" y="314" font-size="13.5" fill="#334155">3. Merge only modules he currently leads</text>
+  <rect x="748" y="332" width="344" height="30" rx="8" fill="#FEE2E2"/>
+  <text x="920" y="352" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#991B1B">HOSTS THE RUNNING AGENT while active</text>
+  <text x="754" y="392" font-size="13" fill="#64748B">Day ends: write CLOSE block, commit, push</text>
+
+  <!-- baton box center -->
+  <rect x="505" y="218" width="190" height="140" rx="12" fill="#FFFBEB" stroke="#D97706" stroke-width="2.5"/>
+  <text x="600" y="246" text-anchor="middle" font-size="15" font-weight="bold" fill="#92400E">THE BATON</text>
+  <text x="600" y="270" text-anchor="middle" font-size="13.5" fill="#78350F">HANDOFF.md</text>
+  <text x="600" y="290" text-anchor="middle" font-size="13.5" fill="#78350F">in the GitHub repo</text>
+  <text x="600" y="314" text-anchor="middle" font-size="12.5" fill="#92400E">newest block on top</text>
+  <text x="600" y="334" text-anchor="middle" font-size="12.5" fill="#92400E">read first &#183; write last</text>
+
+  <!-- HANDOFF A arrow: US evening to Tokyo morning -->
+  <path d="M 280 416 C 280 472, 920 472, 920 416" fill="none" stroke="#2563EB" stroke-width="3" marker-end="url(#arrowRed)"/>
+  <text x="600" y="502" text-anchor="middle" font-size="14" font-weight="bold" fill="#1D4ED8">HANDOFF A &#183; US evening, Tokyo morning</text>
+  <text x="600" y="521" text-anchor="middle" font-size="12.5" fill="#1E3A8A">teakeycee prepends CLOSE block, pushes &#183; Jhoosier pulls, reads it FIRST, posts OPEN block</text>
+
+  <!-- Panel 1: the blocks -->
+  <rect x="60" y="556" width="340" height="250" rx="12" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.5"/>
+  <text x="230" y="586" text-anchor="middle" font-size="15" font-weight="bold" fill="#334155">THE TWO BLOCK TYPES</text>
+  <text x="82" y="616" font-size="13.5" font-weight="bold" fill="#0F172A">CLOSE &#183; end of your day</text>
+  <text x="94" y="638" font-size="13" fill="#475569">Changed: what landed, be specific</text>
+  <text x="94" y="658" font-size="13" fill="#475569">Frozen: what must not move now</text>
+  <text x="94" y="678" font-size="13" fill="#475569">Blocked: waiting on what, from whom</text>
+  <text x="94" y="698" font-size="13" fill="#475569">Attack next: other pod's best target</text>
+  <text x="82" y="728" font-size="13.5" font-weight="bold" fill="#0F172A">OPEN &#183; start of your day, short</text>
+  <text x="94" y="750" font-size="13" fill="#475569">Today's intent &#183; lead changes &#183; takeovers</text>
+  <text x="82" y="782" font-size="12.5" fill="#64748B">Every block: UTC timestamp + your name</text>
+
+  <!-- Panel 2: current lead (highlighted) -->
+  <rect x="430" y="548" width="340" height="266" rx="12" fill="#FFFBEB" stroke="#D97706" stroke-width="3.5"/>
+  <text x="600" y="580" text-anchor="middle" font-size="16" font-weight="bold" fill="#92400E">&#9733; CURRENT LEAD PER MODULE &#9733;</text>
+  <text x="452" y="612" font-size="13.5" fill="#78350F">Anyone can contribute anywhere.</text>
+  <text x="452" y="636" font-size="13.5" font-weight="bold" fill="#78350F">Exactly ONE person merges a given</text>
+  <text x="452" y="654" font-size="13.5" font-weight="bold" fill="#78350F">module at any moment: its current lead.</text>
+  <text x="452" y="682" font-size="13.5" fill="#78350F">Leads rotate by declaring it in the</text>
+  <text x="452" y="700" font-size="13.5" fill="#78350F">baton: "Taking governor lead today."</text>
+  <text x="452" y="728" font-size="13.5" fill="#78350F">No cross-seam edits unless the lead's</text>
+  <text x="452" y="746" font-size="13.5" fill="#78350F">block hands the module over.</text>
+  <text x="600" y="784" text-anchor="middle" font-size="12.5" font-style="italic" fill="#92400E">Flexible roles, zero merge collisions.</text>
+
+  <!-- Panel 3: ground rules -->
+  <rect x="800" y="556" width="340" height="250" rx="12" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.5"/>
+  <text x="970" y="586" text-anchor="middle" font-size="15" font-weight="bold" fill="#334155">GROUND RULES</text>
+  <text x="822" y="618" font-size="13" fill="#475569">1. git pull before you write</text>
+  <text x="822" y="642" font-size="13" fill="#475569">2. Prepend only, never edit old blocks</text>
+  <text x="822" y="666" font-size="13" fill="#475569">3. No secrets in the repo, ever</text>
+  <text x="822" y="690" font-size="13" fill="#475569">4. Order IDs prefixed tkc- / jho-</text>
+  <text x="822" y="714" font-size="13" fill="#475569">5. State the account you left behind</text>
+  <text x="822" y="738" font-size="13" fill="#475569">    (flat, or positions listed as intentional)</text>
+  <text x="822" y="762" font-size="13" fill="#475569">6. Max one live sync per day, decisions</text>
+  <text x="822" y="782" font-size="13" fill="#475569">    only, at the evening/morning overlap</text>
+
+  <!-- footer -->
+  <text x="600" y="848" text-anchor="middle" font-size="13.5" font-weight="bold" fill="#64748B">Sep 2: feature freeze, both pods pivot to adversarial testing + pitch &#183; Submissions close Sep 4</text>
+</svg>
