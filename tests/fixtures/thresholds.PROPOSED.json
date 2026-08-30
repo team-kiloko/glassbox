@@ -1,0 +1,8 @@
+{
+  "_status": "PROPOSED — NOT calibrated, NOT signed off.",
+  "_note": "Per CLAUDE.md thresholds/tunables live in config, never hardcoded. These are the values the golden fixtures were built against, so the contract suite has a stable reference. When the real screener config lands, it must READ these keys (or supersede this file); the suite must not carry its own copy of any tunable.",
+  "quote_max_age_seconds": 300,
+  "require_complete_greeks": true,
+  "require_two_sided_quote": true,
+  "required_greeks": ["delta", "gamma", "theta", "vega", "rho"]
+}

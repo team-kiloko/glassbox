@@ -1,0 +1,109 @@
+{
+  "_fixture": {
+    "endpoint": "GET /v1beta1/options/snapshots/SPY",
+    "params": { "feed": "indicative", "limit": 100 },
+    "as_of": "2026-08-28T19:55:00Z",
+    "captured_shape_from": "HANDOFF 2026-08-30 15:00 UTC (Jhoosier) verification gate (c)",
+    "synthetic": true,
+    "note": "Values are SYNTHETIC and hand-built to be plausible, not a live capture. Shape is real. Deliberate defects are documented in README.md. SPY260918C00700000 is deliberately ABSENT here although it exists in the contracts fixture."
+  },
+  "snapshots": {
+    "SPY260918C00640000": {
+      "latestQuote": {
+        "ap": 8.94, "as": 35, "ax": "C",
+        "bp": 8.82, "bs": 48, "bx": "C",
+        "c": "A",
+        "t": "2026-08-28T19:54:58.812734191Z"
+      },
+      "latestTrade": {
+        "c": "I", "p": 8.88, "s": 4, "x": "C",
+        "t": "2026-08-28T19:54:51.330218774Z"
+      },
+      "greeks": {
+        "delta": 0.5236,
+        "gamma": 0.0179,
+        "theta": -0.2141,
+        "vega": 0.6112,
+        "rho": 0.3187
+      },
+      "impliedVolatility": 0.1452
+    },
+    "SPY260918P00635000": {
+      "latestQuote": {
+        "ap": 6.42, "as": 44, "ax": "N",
+        "bp": 6.31, "bs": 62, "bx": "C",
+        "c": "A",
+        "t": "2026-08-28T19:54:57.104882630Z"
+      },
+      "latestTrade": {
+        "c": "I", "p": 6.36, "s": 10, "x": "N",
+        "t": "2026-08-28T19:54:40.918273645Z"
+      },
+      "greeks": {
+        "delta": -0.4172,
+        "gamma": 0.0176,
+        "theta": -0.2038,
+        "vega": 0.6003,
+        "rho": -0.2874
+      },
+      "impliedVolatility": 0.1489
+    },
+    "SPY260918C00500000": {
+      "latestQuote": {
+        "ap": 140.95, "as": 4, "ax": "X",
+        "bp": 139.85, "bs": 5, "bx": "X",
+        "c": "A",
+        "t": "2026-08-28T19:53:41.229107884Z"
+      },
+      "greeks": null,
+      "impliedVolatility": null
+    },
+    "SPY260918C00780000": {
+      "latestQuote": {
+        "ap": 0.02, "as": 25, "ax": "M",
+        "bp": 0, "bs": 0, "bx": "",
+        "c": "A",
+        "t": "2026-08-28T19:52:16.667301944Z"
+      },
+      "greeks": null,
+      "impliedVolatility": null
+    },
+    "SPY260918P00470000": {
+      "latestQuote": {
+        "ap": 0.03, "as": 150, "ax": "M",
+        "bp": 0, "bs": 0, "bx": "",
+        "c": "A",
+        "t": "2026-08-28T19:54:12.883014507Z"
+      },
+      "greeks": {
+        "delta": -0.0021,
+        "gamma": 0.0001,
+        "theta": -0.0089,
+        "vega": 0.0142,
+        "rho": -0.0018
+      },
+      "impliedVolatility": 0.2814
+    },
+    "SPY260918C00655000": {
+      "latestQuote": {
+        "ap": 3.49, "as": 27, "ax": "C",
+        "bp": 3.41, "bs": 31, "bx": "C",
+        "c": "A",
+        "t": "2026-08-28T17:38:12.441907233Z"
+      },
+      "latestTrade": {
+        "c": "I", "p": 3.45, "s": 2, "x": "C",
+        "t": "2026-08-28T17:31:05.774301882Z"
+      },
+      "greeks": {
+        "delta": 0.3184,
+        "gamma": 0.0164,
+        "theta": -0.2012,
+        "vega": 0.5518,
+        "rho": 0.1904
+      },
+      "impliedVolatility": 0.1398
+    }
+  },
+  "next_page_token": null
+}

@@ -1,0 +1,16 @@
+{
+  "_status": "GOLDEN — the expected screener output for this fixture slice.",
+  "_note": "Reason codes are PROPOSED vocabulary (see README.md). A contract may carry more than one reason; order is not significant.",
+  "as_of": "2026-08-28T19:55:00Z",
+  "thresholds_ref": "thresholds.PROPOSED.json",
+  "reason_vocabulary": ["null_greeks", "missing_bid", "stale_quote", "no_snapshot"],
+  "expected": {
+    "SPY260918C00640000": { "accept": true,  "reasons": [] },
+    "SPY260918P00635000": { "accept": true,  "reasons": [] },
+    "SPY260918C00500000": { "accept": false, "reasons": ["null_greeks"] },
+    "SPY260918C00780000": { "accept": false, "reasons": ["null_greeks", "missing_bid"] },
+    "SPY260918P00470000": { "accept": false, "reasons": ["missing_bid"] },
+    "SPY260918C00655000": { "accept": false, "reasons": ["stale_quote"] },
+    "SPY260918C00700000": { "accept": false, "reasons": ["no_snapshot"] }
+  }
+}
