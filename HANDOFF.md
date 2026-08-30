@@ -16,6 +16,35 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-08-30 22:07 UTC - teakeycee - CLOSE
+- **Changed:** US environment green (venv, pinned deps incl. pytest==9.1.1); Claude
+  Code relay operational; phase 1 complete as of commit adb1030 (CLAUDE.md,
+  SUBMISSION.md, scripts/verify_gate.py, docs/handoff_protocol.svg, .env.example
+  naming aligned: ALPACA_API_SECRET retired, use ALPACA_SECRET_KEY); GB-S screener
+  contract suite + golden fixtures landed this commit: 7-contract SPY slice with
+  isolated defects, golden verdicts with reason codes, 4 fixture-integrity tests
+  passing, 12 behavior tests strict-xfail that auto-arm when a screener module with
+  screen_chain() appears. Correction to my earlier block: SUBMISSION.md and
+  docs/handoff_protocol.svg are no longer missing; both landed in adb1030.
+- **Frozen:** GB_INTERFACES.md and TEAM_PROTOCOL.md untouched, pre-sign-off. The
+  screen_chain(contracts, snapshots, as_of, thresholds) signature is PROPOSED and
+  lives only in tests/conftest.py; it moves into GB_INTERFACES at sign-off, not
+  before. thresholds.PROPOSED.json values (incl. quote_max_age_seconds: 300) are
+  placeholders, not calibrated judgments.
+- **Blocked:** Verification gate BLOCKED on dev keys — not yet in the shared sheet;
+  ALPACA_API_KEY and ALPACA_SECRET_KEY are present but empty in this box's .env, so
+  scripts/verify_gate.py was not run this session and the US-side a/b/c remains
+  unverified. Phase 4 seam sign-off pending both humans.
+- **Attack next:** paste dev keys to the sheet; pick the demo platform (Streamlit /
+  Replit / Vercel); review the fixture shapes and GB-S criteria against your live-test
+  notes and attack them with counter-fixtures if you see a gap; come to sign-off ready
+  on: seam shapes (+ my proposed screen_chain seam), initial leads, competition
+  account creator and Monday-if-ready timing, and one real design question: quote
+  freshness vs closed markets. Any quote is hours old outside market hours, so a
+  naive freshness rule rejects everything on weekends; we need deliberate as_of
+  semantics or market-hours-only screening. This affects run scheduling and the
+  scored P&L window, so it needs both humans.
+
 ### 2026-08-30 15:00 UTC - Jhoosier - CLOSE
 - **Changed:** Phase 2 + Phase 3 gate complete on Japan side. Dev paper account live
   (PA34K04ZYHYO, $100k, options level 3 — spreads approved; credentials in the shared
