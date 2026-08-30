@@ -1,0 +1,75 @@
+<svg viewBox="0 0 1200 940" xmlns="http://www.w3.org/2000/svg" font-family="Helvetica, Arial, sans-serif">
+  <rect x="0" y="0" width="1200" height="940" fill="#FAFAF6"/>
+
+  <!-- title -->
+  <text x="600" y="44" text-anchor="middle" font-size="27" font-weight="bold" fill="#1E293B">GlassBox &#183; Initial Setup &amp; Build Start</text>
+  <text x="600" y="70" text-anchor="middle" font-size="14" fill="#64748B">team-kiloko &#183; four phases, then the baton takes over</text>
+
+  <!-- legend -->
+  <rect x="330" y="84" width="120" height="24" rx="12" fill="#FEF2F2" stroke="#DC2626" stroke-width="1.5"/>
+  <text x="390" y="100" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#B91C1C">JHOOSIER</text>
+  <rect x="465" y="84" width="120" height="24" rx="12" fill="#EFF6FF" stroke="#2563EB" stroke-width="1.5"/>
+  <text x="525" y="100" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#1D4ED8">TEAKEYCEE</text>
+  <rect x="600" y="84" width="120" height="24" rx="12" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5"/>
+  <text x="660" y="100" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#92400E">BOTH</text>
+  <text x="790" y="100" font-size="12.5" fill="#64748B">badge = who drives it</text>
+
+  <!-- PHASE 1 -->
+  <rect x="60" y="124" width="1080" height="150" rx="14" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.5"/>
+  <circle cx="102" cy="160" r="18" fill="#334155"/>
+  <text x="102" y="166" text-anchor="middle" font-size="16" font-weight="bold" fill="#FFFFFF">1</text>
+  <text x="132" y="166" font-size="17" font-weight="bold" fill="#1E293B">COORDINATION SPINE (repo)</text>
+  <rect x="1010" y="142" width="110" height="24" rx="12" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5"/>
+  <text x="1065" y="158" text-anchor="middle" font-size="12" font-weight="bold" fill="#92400E">BOTH</text>
+  <text x="132" y="196" font-size="13.5" fill="#475569">&#8226; Merge protocol docs: HANDOFF_PROTOCOL.md + docs/handoff_protocol.svg &#8226; Update TEAM_PROTOCOL (current-lead rule, twice-daily baton)</text>
+  <text x="132" y="220" font-size="13.5" fill="#475569">&#8226; Relabel GB_INTERFACES to teakeycee / Jhoosier with CURRENT LEAD per module &#8226; Refresh EVENT_FACTS from the enrolled page (primary)</text>
+  <text x="132" y="244" font-size="13.5" fill="#475569">&#8226; Add missing LICENSE (MIT) &#8226; Create SUBMISSION.md checklist &#8226; Repo stays private until the pre-submission secrets scan</text>
+
+  <!-- PHASE 2 -->
+  <rect x="60" y="292" width="1080" height="150" rx="14" fill="#FFF5F5" stroke="#DC2626" stroke-width="1.5"/>
+  <circle cx="102" cy="328" r="18" fill="#B91C1C"/>
+  <text x="102" y="334" text-anchor="middle" font-size="16" font-weight="bold" fill="#FFFFFF">2</text>
+  <text x="132" y="334" font-size="17" font-weight="bold" fill="#7F1D1D">TEAM EMAIL + DEV ALPACA ACCOUNT</text>
+  <rect x="1010" y="310" width="110" height="24" rx="12" fill="#FEF2F2" stroke="#DC2626" stroke-width="1.5"/>
+  <text x="1065" y="326" text-anchor="middle" font-size="12" font-weight="bold" fill="#B91C1C">JHOOSIER</text>
+  <text x="132" y="364" font-size="13.5" fill="#475569">&#8226; Create team Gmail (2FA on) &#8226; Sign up dev Alpaca account on team+dev@ alias &#8226; Capture the MFA setup key BEFORE finishing enrollment</text>
+  <text x="132" y="388" font-size="13.5" fill="#475569">&#8226; Stay paper-only (no identity verification) &#8226; Generate API keys &#8226; Smoke-test: GET /v2/account returns JSON</text>
+  <text x="132" y="412" font-size="13.5" fill="#475569">&#8226; Credential bundle into the shared vault (never chat or repo) &#8226; HANDOFF block: account ID, vault pointer, account left flat</text>
+
+  <!-- PHASE 3 -->
+  <rect x="60" y="460" width="1080" height="168" rx="14" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5"/>
+  <circle cx="102" cy="496" r="18" fill="#B45309"/>
+  <text x="102" y="502" text-anchor="middle" font-size="16" font-weight="bold" fill="#FFFFFF">3</text>
+  <text x="132" y="502" font-size="17" font-weight="bold" fill="#78350F">LOCAL ENVIRONMENTS (parallel, each side)</text>
+  <rect x="1010" y="478" width="110" height="24" rx="12" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5"/>
+  <text x="1065" y="494" text-anchor="middle" font-size="12" font-weight="bold" fill="#92400E">BOTH</text>
+  <text x="132" y="532" font-size="13.5" fill="#475569">&#8226; Clone repo &#8226; Python 3.11+ venv &#8226; Copy .env.example to .env, add dev keys from vault &#8226; Pin dependencies exactly</text>
+  <text x="132" y="556" font-size="13.5" fill="#475569">&#8226; Install alpaca-py SDK; active host also wires Alpaca's official MCP server &#8226; Verify account read + an OPTIONS CHAIN fetch</text>
+  <text x="132" y="580" font-size="13.5" fill="#475569">&#8226; teakeycee: Claude + Claude Code relay, Console account budget set &#8226; Jhoosier: own agent pod on his own LLM account</text>
+  <text x="132" y="608" font-size="13" font-style="italic" fill="#92400E">Options-chain data access on the free paper tier is the key validation: prove it before any strategy code exists.</text>
+
+  <!-- PHASE 4 -->
+  <rect x="60" y="646" width="1080" height="168" rx="14" fill="#F0F7FF" stroke="#2563EB" stroke-width="1.5"/>
+  <circle cx="102" cy="682" r="18" fill="#1D4ED8"/>
+  <text x="102" y="688" text-anchor="middle" font-size="16" font-weight="bold" fill="#FFFFFF">4</text>
+  <text x="132" y="688" font-size="17" font-weight="bold" fill="#1E3A8A">SEAM SIGN-OFF, THEN FIRST BUILD</text>
+  <rect x="1010" y="664" width="110" height="24" rx="12" fill="#FFFBEB" stroke="#D97706" stroke-width="1.5"/>
+  <text x="1065" y="680" text-anchor="middle" font-size="12" font-weight="bold" fill="#92400E">BOTH</text>
+  <text x="132" y="718" font-size="13.5" fill="#475569">&#8226; Sync touchpoint: sign off GB_INTERFACES shapes + starting leads &#8226; Jhoosier picks demo platform (Streamlit / Replit / Vercel)</text>
+  <text x="132" y="742" font-size="13.5" fill="#475569">&#8226; First leads (suggested): data layer + chain screener fixtures (one side) &#8226; MCP wiring + NL intent path (other side)</text>
+  <text x="132" y="766" font-size="13.5" fill="#475569">&#8226; Governor contracts drafted (GB-C series): defined-risk only; covered calls, cash-secured puts, verticals; nothing else expressible</text>
+  <text x="132" y="794" font-size="13" font-style="italic" fill="#1E40AF">Contract tests are the acceptance gate for every module, whichever pod wrote the code.</text>
+
+  <!-- milestone strip -->
+  <line x1="90" y1="874" x2="1110" y2="874" stroke="#94A3B8" stroke-width="2"/>
+  <circle cx="150" cy="874" r="7" fill="#334155"/>
+  <text x="150" y="900" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#334155">Setup done</text>
+  <circle cx="360" cy="874" r="7" fill="#334155"/>
+  <text x="360" y="900" text-anchor="middle" font-size="12.5" fill="#334155">Build days (baton)</text>
+  <circle cx="600" cy="874" r="7" fill="#B45309"/>
+  <text x="600" y="900" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#92400E">~Sep 1: competition account</text>
+  <circle cx="850" cy="874" r="7" fill="#B91C1C"/>
+  <text x="850" y="900" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#B91C1C">Sep 2: feature freeze</text>
+  <circle cx="1060" cy="874" r="7" fill="#1D4ED8"/>
+  <text x="1060" y="900" text-anchor="middle" font-size="12.5" font-weight="bold" fill="#1D4ED8">Sep 4: submit</text>
+</svg>

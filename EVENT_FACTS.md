@@ -27,6 +27,7 @@
 | Paper environment | Simulated funds + real market data; free, no card | `[primary]` | ✅ |
 | Video length | NOT specified on the event page — check the lablab Rule Book (lablab.ai/hackathon-rules) | — | 🙋 |
 | Registration | Must enroll on lablab.ai + join the lablab Discord | `[primary]` | ✅ |
+| Options data on free paper tier | Full SPY chain serves on FREE paper: contracts (strikes/expiries/OI), two-sided quotes w/ sizes, greeks+IV near-the-money. Greeks null on deep-ITM/illiquid; contracts paginate nearest-expiry-first. | `[primary]` live test 2026-08-30 | ✅ |
 
 ## Still to read (not on the main event page)
 - Exact **video length** limit → lablab Rule Book (`lablab.ai/hackathon-rules`).

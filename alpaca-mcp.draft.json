@@ -1,0 +1,14 @@
+{
+  "_note": "DRAFT — Alpaca official MCP server config (github.com/alpacahq/alpaca-mcp-server). Not active. To activate after dev paper keys exist: copy the mcpServers block into .mcp.json (project scope) or run `claude mcp add`. Fill keys from .env / vault — NEVER commit real values. NB: the server expects ALPACA_SECRET_KEY, while .env.example uses ALPACA_API_SECRET — map accordingly.",
+  "mcpServers": {
+    "alpaca": {
+      "command": "uvx",
+      "args": ["alpaca-mcp-server"],
+      "env": {
+        "ALPACA_API_KEY": "",
+        "ALPACA_SECRET_KEY": "",
+        "ALPACA_PAPER_TRADE": "true"
+      }
+    }
+  }
+}
