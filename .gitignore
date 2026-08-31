@@ -4,6 +4,7 @@
 !.env.example
 *.key
 *.pem
+CLAUDE.local.md
 
 # Python
 __pycache__/
