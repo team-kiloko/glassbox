@@ -16,6 +16,76 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-08-31 04:55 UTC - Jhoosier - CLOSE
+- **Changed:** Documentation only, no code/tests/fixtures touched. Two new files:
+  (1) `GB_INTERFACES.SIGNOFF-DRAFT.md` at repo root — a complete proposed
+  replacement for the frozen seam, prepared at your Attack-next request. Parties
+  relabelled teakeycee / Jhoosier (Tiki/TKC retired); ownership table replaced
+  with a CURRENT LEAD table, every row `set at sign-off`, leads rotating via
+  HANDOFF per HANDOFF_PROTOCOL.md. Shape 2 proposal: `structure` closed to
+  `covered_call | cash_secured_put | vertical_spread | iron_condor`; legs gain
+  `symbol` (OCC) and the proposal gains `underlying` — without a symbol the
+  governor's output cannot become an order; legs gain `limit_price` and the
+  proposal `net_debit_credit` with a normative reconciliation rule (net must
+  equal the signed sum of leg prices x qty or the governor rejects; the net is
+  the executable figure since Alpaca multi-leg fills on a single net limit);
+  `max_loss`/`max_gain` renamed `claimed_max_loss`/`claimed_max_gain`, ADVISORY,
+  kept so the GB-C false-claim fixture has something to catch; explicit note that
+  naked-short prevention is NOT a schema property (a covered call and a CSP are
+  each a lone short leg — coverage is account state) and lives in the order
+  builder's structure-tagged constructors plus the governor's
+  structure-vs-legs-vs-account-state check. New shape 2b account state (per-
+  underlying shares, cash, buying power, reserved cash/shares, `as_of`),
+  PLACEHOLDER. Shape 3 verdict: `mode` (approve|autopilot), `config_version`
+  recommended as a content hash rather than a hand-bumped string, the governor's
+  independently computed max loss surfaced in `checks` detail, and
+  `prompt_version` explicitly excluded (the governor is deterministic and has no
+  prompt — it rides the proposal/ledger). Shape 4 order: `client_order_id`,
+  prefix from `ORDER_ID_PREFIX` in each box's `.env` and never hardcoded
+  (`tkc-`/`jho-` appear as marked examples only), scheme
+  `<prefix><ledger-entry-id>` so a retried submit dedupes at the broker. Shape 5
+  ledger: `order`/`fill` explicitly NULLABLE and never key-omitted; PROPOSED
+  status vocabulary `governor_rejected | broker_rejected | filled | partial_fill
+  | expired | canceled`; `id`, `as_of`, `config_version`, `prompt_version`,
+  `code_version`, `mode`, `approved_by`/`approved_at` (null in autopilot);
+  append-only rule stated. New shape 6: your `screen_chain(contracts, snapshots,
+  as_of, thresholds) -> result` lifted verbatim from tests/conftest.py with the
+  reason vocabulary from expected_verdicts.json, plus two normative notes — the
+  CALLER loads thresholds and passes the mapping in (no file I/O, GB-S-10
+  determinism, no component carries its own copy of a tunable), and freshness is
+  measured against `as_of`, never wall clock (fixtures README trap #2). Your
+  quote-freshness question is written up as 6c, PROPOSED + OPEN, not decided.
+  Change log carries a dated entry with both signatures pending.
+  (2) `docs/signoff_agenda.md` — one-page run-down of every OPEN item (iron
+  condor representation, reservation producer, `checks[]` vocabulary, ledger
+  status in flight, `as_of` policy) plus the SETUP 4.1 non-shape decisions
+  (initial leads, demo platform, competition-account creator/timing ~Sep 1).
+  **GB_INTERFACES.md itself was NOT touched.** No orders placed; dev account
+  untouched and flat.
+- **Frozen:** `GB_INTERFACES.md` remains FROZEN and is still the file of record
+  until BOTH humans sign. The draft supersedes it only after sign-off, and the
+  swap is a separate human-ordered step — no pod performs it. tests/ and
+  tests/fixtures/ untouched this session; the GB-S suite and golden fixtures are
+  exactly as you left them at 77714be. `thresholds.PROPOSED.json` still
+  uncalibrated.
+- **Blocked:** Sign-off needs teakeycee — nothing in the draft is decided, and
+  six items are explicitly OPEN pending both humans. Your dev-keys request is
+  CLEARED: Jay placed the ALPACA_API_KEY + ALPACA_SECRET_KEY values in the
+  shared sheet ~2026-08-31 03:55 UTC (after your CLOSE block). Remaining on
+  your side: fill .env from the sheet (plus ORDER_ID_PREFIX=tkc-), run
+  scripts/verify_gate.py, and report a/b/c — Phase 3 DONE-WHEN needs both
+  sides green.
+- **Attack next:** teakeycee — FIRST: dev keys are in the shared sheet now;
+  fill your .env and run the verification gate so Phase 3 closes before the
+  touchpoint. Then review `GB_INTERFACES.SIGNOFF-DRAFT.md` against
+  your live-test notes and the golden fixtures. Mark objections inline; the
+  places most worth attacking are the reconciliation rule's sign convention, the
+  ledger status vocabulary against what Alpaca actually reports, and whether the
+  screener reason vocabulary needs a fifth code your fixtures imply but
+  `expected_verdicts.json` does not yet name. Then come to the touchpoint ready
+  to sign or amend, with `docs/signoff_agenda.md` open — it is built to be run
+  down in order.
+
 ### 2026-08-30 22:07 UTC - teakeycee - CLOSE
 - **Changed:** US environment green (venv, pinned deps incl. pytest==9.1.1); Claude
   Code relay operational; phase 1 complete as of commit adb1030 (CLAUDE.md,
