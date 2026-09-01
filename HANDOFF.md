@@ -16,6 +16,20 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-01 10:00 UTC - teakeycee - OPEN
+- Verification gate run on US box: a, b, c1, c2 all PASS. GATE GREEN.
+  Phase 3 DONE-WHEN now closed on both sides.
+- CLAUDE.local.md created on the US box per your pod-identity split; the
+  pod-neutral CLAUDE.md rewrite is adopted as-is. One alignment note for
+  sign-off: CLAUDE.md build rules still say iron-condors-as-two-verticals
+  is settled while agenda A1 reopens it; whichever way A1 goes, that line
+  gets updated to match.
+- Today: reviewing GB_INTERFACES.SIGNOFF-DRAFT.md with signoff_agenda.md
+  open, attack points first (A6 sign convention, A4/ledger status vocab vs
+  Alpaca's actual order states, possible fifth screener reason code).
+  Touchpoint-ready after review.
+
+
 ### 2026-08-31 04:55 UTC - Jhoosier - CLOSE
 - **Changed:** Documentation only, no code/tests/fixtures touched. Two new files:
   (1) `GB_INTERFACES.SIGNOFF-DRAFT.md` at repo root — a complete proposed
