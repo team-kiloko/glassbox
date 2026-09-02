@@ -59,7 +59,7 @@ from glassbox.ledger import iso_utc  # one definition of an audit timestamp
 
 __all__ = [
     "DataFeed", "DataFeedError", "load_config", "load_dotenv", "resolve_as_of",
-    "parse_wire_ts", "build_raw_account_state", "MARKET_TZ",
+    "parse_wire_ts", "build_raw_account_state", "assert_paper", "MARKET_TZ",
 ]
 
 #: The exchange calendar's own timezone. Not a tunable and not a hand-rolled
@@ -141,11 +141,11 @@ def load_config(env=None):
         "trading_base_url": environment["ALPACA_TRADING_BASE_URL"].rstrip("/"),
         "data_base_url": environment["ALPACA_DATA_BASE_URL"].rstrip("/"),
     }
-    _assert_paper(config["trading_base_url"])
+    assert_paper(config["trading_base_url"])
     return config
 
 
-def _assert_paper(trading_base_url):
+def assert_paper(trading_base_url):
     """CLAUDE.md: paper trading only. Raise before a request, never after."""
     if "paper" not in (trading_base_url or ""):
         raise DataFeedError(
@@ -276,7 +276,7 @@ class DataFeed:
             base = self.config["trading_base_url"]
             # Re-checked per request, not only at load: a hand-built config must
             # not be able to reach a live endpoint either.
-            _assert_paper(base)
+            assert_paper(base)
             return base
         if host == "data":
             return self.config["data_base_url"]
