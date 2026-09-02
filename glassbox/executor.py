@@ -56,6 +56,8 @@ rather than MCP on this particular path is written up in
 
 from __future__ import annotations
 
+import json
+
 from glassbox.datafeed import assert_paper
 from glassbox.ledger import client_order_id as build_client_order_id
 
@@ -527,11 +529,29 @@ class AlpacaPyTransport:
 
 
 def _as_dict(order):
-    """alpaca-py returns a pydantic model or a raw dict, depending on the call."""
+    """alpaca-py returns a pydantic model or a raw dict, depending on the call.
+
+    **`mode="json"` is load-bearing, twice over**, and a fake transport that
+    returns plain dicts cannot catch either failure:
+
+    * alpaca-py's enums are ``class OrderStatus(str, Enum)``, and on Python 3.11+
+      ``str(OrderStatus.ACCEPTED)`` is ``'OrderStatus.ACCEPTED'``, not
+      ``'accepted'``. Stringifying instead of taking the value would send every
+      real broker status into :data:`BROKER_STATUS_MAP` as an unmapped word — the
+      executor would refuse a perfectly ordinary fill, and only against a live
+      broker.
+    * The model carries real ``datetime`` objects. A ledger entry is serialized
+      with ``json.dumps``, which cannot encode one, so an unconverted timestamp
+      would fail the append AFTER the order was already live at the broker —
+      the worst possible moment to discover a serialization bug.
+
+    ``mode="json"`` resolves both, recursively, using the model's own schema
+    rather than a hand-rolled walk that would have to guess at nested types.
+    """
     if isinstance(order, dict):
         return order
-    for attribute in ("model_dump", "dict"):
-        if hasattr(order, attribute):
-            return {k: (str(v) if hasattr(v, "value") else v)
-                    for k, v in getattr(order, attribute)().items()}
+    if hasattr(order, "model_dump"):
+        return order.model_dump(mode="json")
+    if hasattr(order, "dict"):
+        return json.loads(json.dumps(order.dict(), default=str))
     return dict(order)

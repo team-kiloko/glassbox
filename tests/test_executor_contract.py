@@ -582,3 +582,54 @@ def test_gb_e_21_the_real_transport_is_the_official_sdk_and_is_paper_only():
             f"the real transport must satisfy the same two-method interface the "
             f"FakeTransport does, or the suite is testing a different code path"
         )
+
+
+@requires_executor
+def test_gb_e_22_sdk_models_normalise_to_primitives(approved_roots):
+    """GB-E-22: the real transport's model conversion, which the fake cannot test.
+
+    `FakeTransport` returns plain dicts, so every test above this one exercises
+    a path where conversion is a no-op. The real transport returns an alpaca-py
+    pydantic model, and two of its properties are hostile:
+
+      * its enums are `class X(str, Enum)`, so on Python 3.11+ `str(...)` yields
+        `'OrderStatus.ACCEPTED'` rather than `'accepted'` — which would reach
+        BROKER_STATUS_MAP as an unmapped word and make the executor refuse an
+        ordinary fill, live and only live;
+      * it carries real `datetime` objects, and a ledger entry is serialized
+        with `json.dumps`, which cannot encode one — failing the append AFTER
+        the order is already at the broker.
+
+    Both are invisible until a real order exists. This is the test that makes
+    them visible without one.
+    """
+    from datetime import datetime, timezone
+    from enum import Enum
+
+    from pydantic import BaseModel
+
+    class Status(str, Enum):
+        ACCEPTED = "accepted"
+
+    class OrderLike(BaseModel):
+        status: Status
+        submitted_at: datetime
+        filled_avg_price: float | None = None
+
+    assert str(Status.ACCEPTED) != "accepted", (
+        "if this ever stops being true the trap is gone, and so is the reason "
+        "for this test — check the conversion still does the right thing anyway"
+    )
+
+    converted = EXECUTOR._as_dict(
+        OrderLike(status=Status.ACCEPTED,
+                  submitted_at=datetime(2026, 9, 2, 13, 45, tzinfo=timezone.utc))
+    )
+    assert converted["status"] == "accepted", "the enum's VALUE, not its repr"
+    assert converted["status"] in EXECUTOR.BROKER_STATUS_MAP
+    assert isinstance(converted["submitted_at"], str)
+    json.dumps(converted)   # raises if anything survived as a non-primitive
+
+    # A plain dict passes through untouched, which is what keeps the fake and
+    # the real transport on the same code path.
+    assert EXECUTOR._as_dict({"status": "filled"}) == {"status": "filled"}
