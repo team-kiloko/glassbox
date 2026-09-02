@@ -77,6 +77,7 @@ _REQUIRED_THRESHOLDS = (
     "churn_window_seconds",
     "min_hold_seconds",
     "position_caps",
+    "max_expiry_date",
 )
 
 
@@ -132,6 +133,7 @@ def govern(proposal, account_state, clock_or_as_of, thresholds, mode, config_ver
     checks.append(_check(*_check_churn(proposal, account, as_of, thresholds)))
     checks.append(_check(*_check_market_open(is_open)))
     checks.append(_check(*_check_position_cap(proposal, account, thresholds)))
+    checks.append(_check(*_check_max_expiry(proposal, thresholds)))
 
     approved = all(check["passed"] for check in checks)
     return {
@@ -542,6 +544,57 @@ def _check_position_cap(proposal, account, thresholds):
     )
     passed = for_underlying < per_cap and total < total_cap
     return "x_position_cap", passed, detail
+
+
+def _check_max_expiry(proposal, thresholds):
+    """The scored-run expiry bound. Not seam vocabulary, so it rides `x_` (3a).
+
+    **Why this is not `structure_valid`.** The pinned core vocabulary is closed
+    to the governor lead: `structure_valid` is defined in 3a as "the declared
+    structure matches the actual leg composition, and leg `ratio_qty` values are
+    positive integers with GCD 1". An expiry bound is neither, and quietly
+    widening a pinned check to hold an unrelated rule would be a seam change
+    made by not writing one down. `x_` is the extension point the seam grants
+    for exactly this, and the dashboard renders `x_` checks generically.
+
+    **Why the bound exists at all.** Scoring reads TOTAL ACCOUNT EQUITY at EOD
+    Thursday Sep 3 (`EVENT_FACTS.md`, Alpaca FAQ, `[primary]`). A short premium
+    position still open after that is scored at its *mark* — unrealised and
+    moving — rather than at the premium collected. Positions that resolve on or
+    before the bound convert premium into scored equity instead of leaving
+    mark-to-market residue in the number the judges read.
+
+    This is a **scored-run bound, not a trading judgement**, which is why it is
+    DECIDED rather than PROPOSED and why it lives in config with its reasoning
+    attached. `null` means no bound is configured; that is the honest value for
+    a run that is not the scored one, and it is stated in the detail rather than
+    left as a silent pass.
+    """
+    bound = thresholds["max_expiry_date"]
+    legs = proposal.get("legs") or []
+    expiries = [leg.get("expiry") for leg in legs]
+    shown = ",".join(str(e) for e in expiries) or "none"
+
+    if bound is None:
+        return "x_max_expiry", True, (
+            f"max_expiry_date=null legs_expire={shown} — no scored-run expiry bound "
+            f"is configured for this run"
+        )
+
+    # Every leg, not the first: a structure is only as short-dated as its
+    # longest leg, and a spread with one leg past the bound leaves exactly the
+    # open mark-to-market position the bound exists to prevent.
+    late = [e for e in expiries if not isinstance(e, str) or e > bound]
+    detail = (
+        f"max_expiry_date={bound} legs_expire={shown} legs={len(legs)} "
+        f"late_legs={len(late)}"
+    )
+    if late:
+        return "x_max_expiry", False, detail + (
+            " — scoring reads total account equity at the bound, so a leg living "
+            "past it is scored at its mark rather than as collected premium"
+        )
+    return "x_max_expiry", True, detail
 
 
 # ---------------------------------------------------------------------------

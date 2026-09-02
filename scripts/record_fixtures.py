@@ -148,8 +148,10 @@ def main():
     if args.only == "all":
         underlying = tunables["underlying"]
         today = date.today()
-        gte = (today + timedelta(days=tunables["dte_min_days"])).isoformat()
-        lte = (today + timedelta(days=tunables["dte_max_days"])).isoformat()
+        # The recorder keeps its OWN band so re-recording reproduces the
+        # committed fixtures rather than following the live band around.
+        gte = (today + timedelta(days=tunables["fixture_dte_min_days"])).isoformat()
+        lte = (today + timedelta(days=tunables["fixture_dte_max_days"])).isoformat()
         page_limit = tunables["fixture_page_limit"]
 
         # -- contracts, two pages, verbatim -------------------------------

@@ -272,6 +272,19 @@ def clocks():
     return _load_gov("clocks.json")["clocks"]
 
 
+#: The SCORED-RUN governor config, under config/ rather than under fixtures/.
+#: The suite reads it because the scored bound is a DECIDED value that a test
+#: must be able to fail on — a config nothing asserts against is a config that
+#: can drift to anything between now and Thursday.
+CONFIG_DIR = Path(__file__).parent.parent / "config"
+
+
+@pytest.fixture(scope="session")
+def scored_thresholds():
+    with (CONFIG_DIR / "thresholds.governor.SCORED.json").open() as fh:
+        return json.load(fh)
+
+
 @pytest.fixture(scope="session")
 def gov_golden():
     return _load_gov("expected_verdicts.json")

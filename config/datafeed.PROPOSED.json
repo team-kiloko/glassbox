@@ -4,14 +4,17 @@
 
   "underlying": "SPY",
 
-  "dte_min_days": 21,
+  "_dte_note": "The band the LIVE pipeline asks the contracts endpoint for. dte_min_days is 0 because same-day expiries are in scope; dte_max_days is a wide outer bound, because the binding constraint is NOT this number — it is `max_expiry_date` in config/thresholds.governor.SCORED.json, and the caller clamps this window to it. One owner for the scored bound, and this band cannot silently disagree with it.",
+  "dte_min_days": 0,
   "dte_max_days": 45,
 
   "snapshot_feed": "indicative",
 
   "page_limit": 100,
 
-  "_fixture_note": "Recording-only. scripts/record_fixtures.py narrows to a strike band and one option type so that the recorded pagination sample is a COMPLETE run — page 2 terminates — while still spanning every expiry in the DTE band, which is what makes the nearest-expiry-first ordering visible across the page boundary. These never reach a live run.",
+  "_fixture_note": "Recording-only. scripts/record_fixtures.py narrows to a strike band and one option type so that the recorded pagination sample is a COMPLETE run — page 2 terminates — while still spanning every expiry in its window, which is what makes the nearest-expiry-first ordering visible across the page boundary. It keeps its OWN DTE band so that re-recording reproduces the committed fixtures byte for byte rather than following the live band around. These never reach a live run.",
+  "fixture_dte_min_days": 21,
+  "fixture_dte_max_days": 45,
   "fixture_page_limit": 6,
   "fixture_type": "call",
   "fixture_strike_gte": 500,

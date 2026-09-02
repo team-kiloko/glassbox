@@ -689,3 +689,134 @@ def test_gb_c_21_raw_broker_state_is_a_caller_error(
             proposals["covered_call_ok"], account_states["raw_broker_state"],
             clocks["open"], gov_thresholds, "approve", gov_config_version,
         )
+
+
+# ---------------------------------------------------------------------------
+# GB-C-F07 and GB-C-22..24 — the scored-run expiry bound
+#
+# Added 2026-09-02 with the bound itself. The seam's pinned core vocabulary
+# (3a) has NO home for an expiry rule: `structure_valid` is defined there as
+# leg composition plus ratio_qty/GCD, and widening it to hold an unrelated rule
+# would be a seam change made by not writing one down. So the check rides `x_`,
+# which is the extension point 3a grants the governor lead — and GB-C-23 pins
+# that it stays there.
+# ---------------------------------------------------------------------------
+
+def test_gb_c_f07_scored_config_is_complete_and_agrees_with_the_reference(
+    scored_thresholds, gov_thresholds
+):
+    """GB-C-F07: the scored config is loadable, complete, and has not drifted.
+
+    The scored bound is a DECIDED value that a real run loads on a scored
+    account. A config nothing asserts against is a config that can drift to
+    anything between now and Thursday.
+    """
+    assert scored_thresholds["max_expiry_date"] == "2026-09-03", (
+        "DECIDED: scoring reads total account equity at EOD Thursday 2026-09-03, "
+        "so a position must resolve on or before it to be scored as collected "
+        "premium rather than at its mark"
+    )
+    assert "DECIDED" in scored_thresholds["_status"]
+    assert scored_thresholds["_max_expiry_rationale"].strip(), (
+        "a DECIDED number carries its reasoning in the file, or the reasoning is "
+        "lost the moment the conversation that produced it ends"
+    )
+
+    # Every tunable the governor requires is present.
+    for key in ("max_loss_cap", "net_reconcile_tolerance", "cash_floor_pct",
+                "churn_window_seconds", "min_hold_seconds", "position_caps",
+                "max_expiry_date"):
+        assert key in scored_thresholds, f"scored config is missing {key}"
+
+    # The known duplication, held still. Every number except the bound exists in
+    # both files; this makes a drift a test failure rather than a discovery.
+    shared = [k for k in gov_thresholds
+              if not k.startswith("_") and k != "max_expiry_date"]
+    assert shared, "nothing shared to compare"
+    for key in shared:
+        assert scored_thresholds[key] == gov_thresholds[key], (
+            f"{key} has drifted between the scored config and the suite's "
+            f"reference config. They are duplicated on purpose and must stay "
+            f"identical until one calibrated config replaces both"
+        )
+
+
+@requires_governor
+def test_gb_c_22_scored_bound_rejects_a_leg_that_outlives_it(
+    govern, gov_golden, scored_thresholds, proposals
+):
+    """GB-C-22: under the SCORED config, a Sep 18 vertical is rejected.
+
+    Run against the real scored config, not a fixture one. `credit_vertical_ok`
+    is the golden APPROVED credit vertical — it passes every other check by
+    construction — so under the scored bound the only thing that can change is
+    the expiry, and it does.
+    """
+    approved_under_reference = govern("credit_vertical_approved", golden=gov_golden)
+    assert approved_under_reference["approved"] is True, "sanity: the same proposal passes"
+
+    verdict = govern(
+        proposal="credit_vertical_ok", account="composed_flat", clock="open",
+        thresholds=scored_thresholds,
+    )
+    checks = checks_map(verdict)
+    assert checks["x_max_expiry"] is False
+    assert verdict["approved"] is False
+
+    # Isolated: nothing else moved, so the rejection is attributable.
+    assert [rule for rule, passed in checks.items() if not passed] == ["x_max_expiry"]
+
+    fields = detail_fields(detail_for(verdict, "x_max_expiry"))
+    assert fields["max_expiry_date"] == "2026-09-03"
+    assert fields["late_legs"] == "2", "both legs are past the bound, and both are named"
+    assert "2026-09-18" in detail_for(verdict, "x_max_expiry"), (
+        "the detail names what actually expires, not only the bound"
+    )
+
+
+@requires_governor
+def test_gb_c_23_the_bound_is_an_extension_and_never_colonises_the_core(
+    govern, scored_thresholds
+):
+    """GB-C-23: `structure_valid` is pinned seam vocabulary and stays untouched.
+
+    The tempting shortcut is to fail a late expiry as `structure_valid` — it is
+    already a rejection, and no new rule name appears. That would silently
+    redefine a check the seam pins, the dashboard names, and both humans agreed
+    on. The bound is an `x_` extension, and this test is what stops it drifting
+    into the core.
+    """
+    verdict = govern(
+        proposal="credit_vertical_ok", account="composed_flat", clock="open",
+        thresholds=scored_thresholds,
+    )
+    checks = checks_map(verdict)
+    assert checks["structure_valid"] is True, (
+        "the structure is valid; only its expiry is out of bounds"
+    )
+    assert "x_max_expiry" not in CORE_RULES, (
+        "the pinned core vocabulary is a seam change to alter (3a)"
+    )
+    assert [c["rule"] for c in verdict["checks"]][:len(CORE_RULES)] == list(CORE_RULES)
+    assert all(rule in CORE_RULES or rule.startswith("x_") for rule in checks)
+
+
+@requires_governor
+def test_gb_c_24_no_bound_configured_passes_and_says_so(
+    govern, scored_thresholds
+):
+    """GB-C-24: `null` is a stated fact, not a silent pass.
+
+    A run that is not the scored one has no expiry bound, and the audit record
+    must say that rather than showing a check that quietly passed for reasons
+    nobody can reconstruct later.
+    """
+    unbounded = dict(scored_thresholds, max_expiry_date=None)
+    verdict = govern(
+        proposal="credit_vertical_ok", account="composed_flat", clock="open",
+        thresholds=unbounded,
+    )
+    assert checks_map(verdict)["x_max_expiry"] is True
+    detail = detail_for(verdict, "x_max_expiry")
+    assert detail_fields(detail)["max_expiry_date"] == "null"
+    assert "no scored-run expiry bound" in detail

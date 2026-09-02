@@ -1,162 +1,307 @@
 {
-  "_status": "GOLDEN inputs — strategy proposals per GB_INTERFACES.md shape 2.",
-  "_note": "SYNTHETIC. Underlying SPY, spot ~640, expiry 2026-09-18. Prices are per-share for ONE unit of the spread (2c); the 100x multiplier and `qty` are the governor's business, never the proposal's. `claimed_max_loss`/`claimed_max_gain` are ADVISORY (2d) — the governor computes its own figure and never trusts these. Every proposal here is exactly what a strategist would hand over, including the ones that are wrong.",
+  "_status": "GOLDEN inputs \u2014 strategy proposals per GB_INTERFACES.md shape 2.",
+  "_note": "SYNTHETIC. Underlying SPY, spot ~640, expiry 2026-09-18. Prices are per-share for ONE unit of the spread (2c); the 100x multiplier and `qty` are the governor's business, never the proposal's. `claimed_max_loss`/`claimed_max_gain` are ADVISORY (2d) \u2014 the governor computes its own figure and never trusts these. Every proposal here is exactly what a strategist would hand over, including the ones that are wrong.",
   "proposals": {
-
     "covered_call_ok": {
       "underlying": "SPY",
       "structure": "covered_call",
       "qty": 1,
       "legs": [
-        { "symbol": "SPY260918C00660000", "action": "sell", "option_type": "call",
-          "strike": 660, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 3.20 }
+        {
+          "symbol": "SPY260918C00660000",
+          "action": "sell",
+          "option_type": "call",
+          "strike": 660,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 3.2
+        }
       ],
-      "net_debit_credit": -3.20,
+      "net_debit_credit": -3.2,
       "rationale": "Flat-to-mildly-up two weeks; write the 660 against 100 held shares.",
       "claimed_max_loss": 0,
       "claimed_max_gain": 320
     },
-
     "cash_secured_put_ok": {
       "underlying": "SPY",
       "structure": "cash_secured_put",
       "qty": 1,
       "legs": [
-        { "symbol": "SPY260918P00620000", "action": "sell", "option_type": "put",
-          "strike": 620, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 4.10 }
+        {
+          "symbol": "SPY260918P00620000",
+          "action": "sell",
+          "option_type": "put",
+          "strike": 620,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 4.1
+        }
       ],
-      "net_debit_credit": -4.10,
+      "net_debit_credit": -4.1,
       "rationale": "Happy to be assigned SPY at 620; collect 4.10 to wait.",
       "claimed_max_loss": 61590,
       "claimed_max_gain": 410
     },
-
     "debit_vertical_ok": {
       "underlying": "SPY",
       "structure": "vertical_spread",
       "qty": 1,
       "legs": [
-        { "symbol": "SPY260918C00640000", "action": "buy", "option_type": "call",
-          "strike": 640, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 8.90 },
-        { "symbol": "SPY260918C00650000", "action": "sell", "option_type": "call",
-          "strike": 650, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 4.60 }
+        {
+          "symbol": "SPY260918C00640000",
+          "action": "buy",
+          "option_type": "call",
+          "strike": 640,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 8.9
+        },
+        {
+          "symbol": "SPY260918C00650000",
+          "action": "sell",
+          "option_type": "call",
+          "strike": 650,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 4.6
+        }
       ],
-      "net_debit_credit": 4.30,
+      "net_debit_credit": 4.3,
       "rationale": "Mildly up; 640/650 call debit spread, defined risk 4.30 per share.",
       "claimed_max_loss": 430,
       "claimed_max_gain": 570
     },
-
     "credit_vertical_ok": {
       "underlying": "SPY",
       "structure": "vertical_spread",
       "qty": 1,
       "legs": [
-        { "symbol": "SPY260918P00635000", "action": "sell", "option_type": "put",
-          "strike": 635, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 6.30 },
-        { "symbol": "SPY260918P00630000", "action": "buy", "option_type": "put",
-          "strike": 630, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 4.55 }
+        {
+          "symbol": "SPY260918P00635000",
+          "action": "sell",
+          "option_type": "put",
+          "strike": 635,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 6.3
+        },
+        {
+          "symbol": "SPY260918P00630000",
+          "action": "buy",
+          "option_type": "put",
+          "strike": 630,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 4.55
+        }
       ],
       "net_debit_credit": -1.75,
       "rationale": "Flat-to-up; 635/630 put credit spread, 5-wide, 1.75 credit.",
       "claimed_max_loss": 325,
       "claimed_max_gain": 175
     },
-
     "iron_condor_out_of_enum": {
       "underlying": "SPY",
       "structure": "iron_condor",
       "qty": 1,
       "legs": [
-        { "symbol": "SPY260918C00650000", "action": "sell", "option_type": "call",
-          "strike": 650, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 2.10 },
-        { "symbol": "SPY260918C00660000", "action": "buy", "option_type": "call",
-          "strike": 660, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 1.05 },
-        { "symbol": "SPY260918P00620000", "action": "sell", "option_type": "put",
-          "strike": 620, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 2.30 },
-        { "symbol": "SPY260918P00610000", "action": "buy", "option_type": "put",
-          "strike": 610, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 1.20 }
+        {
+          "symbol": "SPY260918C00650000",
+          "action": "sell",
+          "option_type": "call",
+          "strike": 650,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 2.1
+        },
+        {
+          "symbol": "SPY260918C00660000",
+          "action": "buy",
+          "option_type": "call",
+          "strike": 660,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 1.05
+        },
+        {
+          "symbol": "SPY260918P00620000",
+          "action": "sell",
+          "option_type": "put",
+          "strike": 620,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 2.3
+        },
+        {
+          "symbol": "SPY260918P00610000",
+          "action": "buy",
+          "option_type": "put",
+          "strike": 610,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 1.2
+        }
       ],
       "net_debit_credit": -2.15,
       "rationale": "Range-bound; sell the 650/660 call side and the 620/610 put side.",
       "claimed_max_loss": 785,
       "claimed_max_gain": 215
     },
-
     "lone_short_declared_vertical": {
       "underlying": "SPY",
       "structure": "vertical_spread",
       "qty": 1,
       "legs": [
-        { "symbol": "SPY260918C00660000", "action": "sell", "option_type": "call",
-          "strike": 660, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 3.20 }
+        {
+          "symbol": "SPY260918C00660000",
+          "action": "sell",
+          "option_type": "call",
+          "strike": 660,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 3.2
+        }
       ],
-      "net_debit_credit": -3.20,
+      "net_debit_credit": -3.2,
       "rationale": "Labelled a vertical, but there is no long wing: this is a naked short call.",
       "claimed_max_loss": 320,
       "claimed_max_gain": 320
     },
-
     "ratio_gcd_two": {
       "underlying": "SPY",
       "structure": "vertical_spread",
       "qty": 1,
       "legs": [
-        { "symbol": "SPY260918C00640000", "action": "buy", "option_type": "call",
-          "strike": 640, "expiry": "2026-09-18", "ratio_qty": 2, "limit_price": 8.90 },
-        { "symbol": "SPY260918C00650000", "action": "sell", "option_type": "call",
-          "strike": 650, "expiry": "2026-09-18", "ratio_qty": 2, "limit_price": 4.60 }
+        {
+          "symbol": "SPY260918C00640000",
+          "action": "buy",
+          "option_type": "call",
+          "strike": 640,
+          "expiry": "2026-09-18",
+          "ratio_qty": 2,
+          "limit_price": 8.9
+        },
+        {
+          "symbol": "SPY260918C00650000",
+          "action": "sell",
+          "option_type": "call",
+          "strike": 650,
+          "expiry": "2026-09-18",
+          "ratio_qty": 2,
+          "limit_price": 4.6
+        }
       ],
-      "net_debit_credit": 8.60,
-      "rationale": "Same 640/650 spread expressed 2:2 instead of 1:1 — not simplest form.",
+      "net_debit_credit": 8.6,
+      "rationale": "Same 640/650 spread expressed 2:2 instead of 1:1 \u2014 not simplest form.",
       "claimed_max_loss": 860,
       "claimed_max_gain": 1140
     },
-
     "net_mismatch_qty_factor": {
       "underlying": "SPY",
       "structure": "vertical_spread",
       "qty": 2,
       "legs": [
-        { "symbol": "SPY260918C00640000", "action": "buy", "option_type": "call",
-          "strike": 640, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 8.90 },
-        { "symbol": "SPY260918C00650000", "action": "sell", "option_type": "call",
-          "strike": 650, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 4.30 }
+        {
+          "symbol": "SPY260918C00640000",
+          "action": "buy",
+          "option_type": "call",
+          "strike": 640,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 8.9
+        },
+        {
+          "symbol": "SPY260918C00650000",
+          "action": "sell",
+          "option_type": "call",
+          "strike": 650,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 4.3
+        }
       ],
-      "net_debit_credit": 9.20,
+      "net_debit_credit": 9.2,
       "rationale": "Two units of the 640/650 debit spread, net reported with qty multiplied in.",
       "claimed_max_loss": 920,
       "claimed_max_gain": 1080
     },
-
     "false_claim_debit_vertical": {
       "underlying": "SPY",
       "structure": "vertical_spread",
       "qty": 1,
       "legs": [
-        { "symbol": "SPY260918C00640000", "action": "buy", "option_type": "call",
-          "strike": 640, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 8.90 },
-        { "symbol": "SPY260918C00700000", "action": "sell", "option_type": "call",
-          "strike": 700, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 0.71 }
+        {
+          "symbol": "SPY260918C00640000",
+          "action": "buy",
+          "option_type": "call",
+          "strike": 640,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 8.9
+        },
+        {
+          "symbol": "SPY260918C00700000",
+          "action": "sell",
+          "option_type": "call",
+          "strike": 700,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 0.71
+        }
       ],
       "net_debit_credit": 8.19,
       "rationale": "Wide 640/700 call debit spread. The claimed max loss is understated.",
       "claimed_max_loss": 200,
       "claimed_max_gain": 5181
     },
-
     "csp_over_cap": {
       "underlying": "SPY",
       "structure": "cash_secured_put",
       "qty": 1,
       "legs": [
-        { "symbol": "SPY260918P00635000", "action": "sell", "option_type": "put",
-          "strike": 635, "expiry": "2026-09-18", "ratio_qty": 1, "limit_price": 5.05 }
+        {
+          "symbol": "SPY260918P00635000",
+          "action": "sell",
+          "option_type": "put",
+          "strike": 635,
+          "expiry": "2026-09-18",
+          "ratio_qty": 1,
+          "limit_price": 5.05
+        }
       ],
       "net_debit_credit": -5.05,
       "rationale": "Same idea as the 620 put, struck closer to the money.",
       "claimed_max_loss": 62995,
       "claimed_max_gain": 505
+    },
+    "late_expiry_vertical": {
+      "underlying": "SPY",
+      "structure": "vertical_spread",
+      "qty": 1,
+      "legs": [
+        {
+          "symbol": "SPY270115P00635000",
+          "action": "sell",
+          "option_type": "put",
+          "strike": 635,
+          "expiry": "2027-01-15",
+          "ratio_qty": 1,
+          "limit_price": 6.3
+        },
+        {
+          "symbol": "SPY270115P00630000",
+          "action": "buy",
+          "option_type": "put",
+          "strike": 630,
+          "expiry": "2027-01-15",
+          "ratio_qty": 1,
+          "limit_price": 4.55
+        }
+      ],
+      "net_debit_credit": -1.75,
+      "rationale": "Identical to credit_vertical_ok in every respect except the expiry: 635/630 put credit spread, 5-wide, 1.75 credit, expiring 2027-01-15. It exists to isolate the scored-run expiry bound \u2014 everything else about it passes, so a rejection can only be x_max_expiry.",
+      "claimed_max_loss": 325,
+      "claimed_max_gain": 175
     }
   }
 }

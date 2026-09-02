@@ -19,5 +19,8 @@
   "position_caps": {
     "max_open_positions": 4,
     "max_open_per_underlying": 2
-  }
+  },
+
+  "_max_expiry_note": "The SUITE'S REFERENCE BOUND, not the scored-run value. Every golden proposal expires 2026-09-18, and one (late_expiry_vertical) expires 2027-01-15, so this date is chosen exactly as every other number in this file is: so each fixture sits unambiguously on one side of it. It is NOT a trading judgement and NOT the scored-run bound. The DECIDED scored value lives in config/thresholds.governor.SCORED.json, which is the config a real run loads. This file is frozen golden reference data: changing a number in it retroactively invalidates 18 hand-authored verdicts, which is why the two are separate files rather than one shared tunable.",
+  "max_expiry_date": "2026-12-31"
 }
