@@ -93,7 +93,7 @@ requires_governor = pytest.mark.xfail(
     strict=True,
 )
 
-LEDGER, LEDGER_MISSING_REASON = _import_module(_LEDGER_CANDIDATES, "append_root")
+LEDGER, LEDGER_MISSING_REASON = _import_module(_LEDGER_CANDIDATES, "Ledger")
 LEDGER_MISSING = LEDGER is None
 
 requires_ledger = pytest.mark.xfail(
