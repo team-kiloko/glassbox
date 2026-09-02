@@ -1,6 +1,6 @@
 {
   "_note": "Recorded from the DEV paper account by scripts/record_fixtures.py. Account identity is scrubbed to the account id; no credential is written anywhere in this directory. Bodies are verbatim otherwise.",
-  "recorded_at": "2026-09-02T11:47:31.892199Z",
+  "recorded_at": "2026-09-02T13:33:06.750490Z",
   "requests": [
     {
       "file": "account.json",
@@ -22,6 +22,12 @@
       "endpoint": "/v2/clock",
       "params": {},
       "recorded_at": "2026-09-02T11:47:31.892199Z"
+    },
+    {
+      "file": "clock_open.json",
+      "endpoint": "/v2/clock",
+      "params": {},
+      "recorded_at": "2026-09-02T13:33:06.750490Z"
     },
     {
       "file": "contracts_page1.json",
