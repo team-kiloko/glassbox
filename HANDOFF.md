@@ -16,6 +16,21 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 11:35 UTC - teakeycee - OPEN
+- **Taking DATA LAYER lead for today, releasing it back at my CLOSE.** Reason:
+  six spare hours; the data layer is the critical path to an end-to-end dry run
+  before Thursday's open. Per `HANDOFF_PROTOCOL.md` ("leads rotate by
+  declaration in a HANDOFF block, nothing more formal"), this block is the
+  declaration and it is pushed before the work starts.
+- **Executor: I will contribute the seam 4a/4b structure-tagged constructors as
+  a CONTRIBUTION, not a lead change; MCP transport stays yours.**
+- Today's intent: GB-D contract suite against RECORDED fixtures (never the
+  network), `glassbox/datafeed.py` to conform, then an end-to-end dry-run
+  harness — chain -> screener -> governor -> ledger — on the DEV account with
+  **no order submission of any kind**.
+
+---
+
 ### 2026-09-02 11:27 UTC - teakeycee - CLOSE
 - **Changed:** **Three modules landed, three suites armed: 75 passed, 0 xfailed,
   0 xpassed** — GB-S 17, GB-C 31, GB-L 27 (7 fixture-integrity + 20 behaviour).
