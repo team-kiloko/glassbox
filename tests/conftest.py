@@ -895,15 +895,23 @@ class FakeVenue:
     timestamps would go stale against its own suite the moment the reference
     date moved. `quote_age_seconds` is how far behind `as_of` they sit, and a
     test that wants `stale_quote` sets it past the threshold.
+
+    `clock_advance_seconds` makes the venue's clock MOVE between reads, which is
+    what a real one does while a seven-page chain is in flight. Quote timestamps
+    stay anchored to the base `as_of`, so a NEGATIVE `quote_age_seconds` places
+    them after the opening clock read and before the closing one — the exact
+    shape that made a live cycle throw the freshest half of its chain away.
     """
 
     def __init__(self, chain, *, as_of, is_open=True, quote_age_seconds=30,
-                 account=None):
+                 account=None, clock_advance_seconds=0):
         self.chain = chain
         self.as_of = as_of
         self.is_open = is_open
         self.quote_age_seconds = quote_age_seconds
         self.account = dict(account or chain["account"])
+        self.clock_advance_seconds = clock_advance_seconds
+        self.clock_reads = 0
         self.requests = []
 
     # -- the wire ----------------------------------------------------------
@@ -923,7 +931,10 @@ class FakeVenue:
     # -- routes ------------------------------------------------------------
 
     def _route_v2_clock(self, params):
-        stamp = self.as_of.isoformat().replace("+00:00", "Z")
+        moment = self.as_of + timedelta(
+            seconds=self.clock_advance_seconds * self.clock_reads)
+        self.clock_reads += 1
+        stamp = moment.isoformat().replace("+00:00", "Z")
         return {"timestamp": stamp, "is_open": self.is_open,
                 "next_open": "2026-09-03T09:30:00-04:00",
                 "next_close": "2026-09-02T16:00:00-04:00"}

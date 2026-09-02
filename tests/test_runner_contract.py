@@ -1062,3 +1062,70 @@ def test_gb_r_17_the_observer_measures_and_cannot_steer(runner_chain, tmp_path,
     R.run_cycle(closed, cycle_id="0001", now=OPEN_AT)
     assert len(closed_seen) == 1
     assert closed_seen[0]["result"]["skipped"] == "market_closed"
+
+
+@requires_runner
+def test_gb_r_18_as_of_is_when_the_read_finished_not_when_it_started(runner_chain,
+                                                                     tmp_path,
+                                                                     broker_responses):
+    """GB-R-18: a cycle dates itself when the chain arrived, not when it asked.
+
+    A read is true as of when it FINISHED. The chain is seven pages plus a
+    snapshot request, and quotes that update while it is in flight are stamped
+    AFTER a cycle that dated itself up front — so the screener rejects them as
+    `stale_quote`, correctly, because a quote cannot postdate the read that
+    claims to precede it. Dating the cycle first throws away the FRESHEST quotes
+    in the chain, which are exactly the ones worth trading.
+
+    This is not a hypothetical. The 2026-09-02 calibration capture measured it
+    rejecting 201 of 692 contracts and 114 of the 184 near the money, and no
+    value of `quote_max_age_seconds` recovered one of them, because not one of
+    them was old (docs/CALIBRATION_thursday.md).
+
+    So: a venue whose clock moves three seconds while the chain is in flight,
+    serving quotes stamped two seconds after the OPENING read.
+    """
+    import run_cycle as R
+
+    venue = venue_for(runner_chain)
+    venue.clock_advance_seconds = 3
+    venue.quote_age_seconds = -2        # quotes land 2s after the opening clock
+    broker = broker_for(broker_responses)
+    context = make_context(tmp_path, venue, broker)
+
+    result = R.run_cycle(context, cycle_id="0001", now=OPEN_AT)
+
+    # The cycle is dated by the clock read AFTER the chain came back.
+    assert result["as_of"] == "2026-09-02T15:30:03Z", (
+        "as_of must be the closing clock read, not the opening one"
+    )
+    assert result["read_seconds"] == 3.0
+
+    # And nothing was thrown away: every contract is fully quoted, and the quote
+    # that arrived mid-read is 5 seconds old against the closing as_of rather
+    # than 2 seconds in the future against the opening one.
+    assert result["screened"]["rejected"] == 0
+    assert result["screened"]["accepted"] == 7
+    assert result["candidates"] == 1
+    assert result["approved"] == 1
+
+    # The same venue, judged from the opening read, is what the defect looked
+    # like: every quote postdates it, and the whole chain fails closed.
+    from glassbox.screener import screen_chain
+
+    from glassbox.datafeed import DataFeed
+
+    replay_venue = venue_for(runner_chain)
+    replay_venue.quote_age_seconds = -2
+    feed = DataFeed(FAKE_CONFIG, session=replay_venue)
+    opening = OPEN_AT
+    contracts = feed.fetch_contracts("SPY", expiration_date_gte="2026-09-02",
+                                     expiration_date_lte="2026-09-03", as_of=opening)
+    snapshots = feed.fetch_snapshots([c["symbol"] for c in contracts["option_contracts"]],
+                                     as_of=opening)
+    stale = screen_chain(contracts, snapshots, as_of=opening,
+                         thresholds=context.screener_thresholds)
+    assert len(stale["accepted"]) == 0
+    assert all(entry["reasons"] == ["stale_quote"] for entry in stale["rejected"]), (
+        "and it presents as staleness, which is why no freshness setting fixes it"
+    )

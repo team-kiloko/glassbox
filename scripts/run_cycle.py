@@ -104,6 +104,7 @@ from dry_run import (  # noqa: E402
     failing_rules,
     load_profile,
     size_by_asking_the_governor,
+    stamped,
 )
 
 #: The loop's own tunables. Not a risk limit: every one of those is the
@@ -266,18 +267,19 @@ def run_cycle(context, *, cycle_id, now):
     identity, equity, _ = confirm_account(context.transport, profile, context.config)
     result["account_number"] = identity["account_number"]
 
-    # -- 1. the venue's clock, and the as_of everything is measured against --
-    clock = context.feed.fetch_clock()
-    read_at = parse_wire_ts(clock["timestamp"])
+    # -- 1. the venue's clock, and whether it is worth going on --------------
+    opening_clock = context.feed.fetch_clock()
+    read_at = parse_wire_ts(opening_clock["timestamp"])
     calendar = context.feed.fetch_calendar(
         (read_at.date() - timedelta(days=tunables["calendar_lookback_days"])).isoformat(),
         (read_at.date() + timedelta(days=1)).isoformat(),
     )
-    as_of = resolve_as_of(clock, calendar, now=read_at)
+    clock = opening_clock
+    as_of = resolve_as_of(opening_clock, calendar, now=read_at)
     result["as_of"] = iso_utc(as_of)
-    result["market_open"] = bool(clock["is_open"])
+    result["market_open"] = bool(opening_clock["is_open"])
 
-    if not clock["is_open"]:
+    if not opening_clock["is_open"]:
         # Fails closed, and stops here. Nothing is fetched, nothing is proposed,
         # nothing is written. The `as_of` above is still reported, so the log
         # line says WHEN it declined rather than only that it did.
@@ -286,10 +288,11 @@ def run_cycle(context, *, cycle_id, now):
         return result
 
     # -- 2. the chain, clamped to the scored expiry bound -------------------
-    # The band is measured from `as_of`, never from the wall clock: `as_of` is
-    # the timestamp every other step in this cycle is measured against, and a
-    # fetch window derived from a second source of "today" could disagree with it.
-    reference = as_of.date()
+    # The band is measured from the clock read, never from the wall clock: a
+    # second source of "today" could disagree with the one everything else in
+    # this cycle is measured against. It is a DATE, so the re-stamp below cannot
+    # move it.
+    reference = read_at.date()
     gte = (reference + timedelta(days=tunables["dte_min_days"])).isoformat()
     lte = (reference + timedelta(days=tunables["dte_max_days"])).isoformat()
     bound = context.governor_thresholds["max_expiry_date"]
@@ -301,7 +304,7 @@ def run_cycle(context, *, cycle_id, now):
 
     contracts = context.feed.fetch_contracts(
         tunables["underlying"], expiration_date_gte=gte, expiration_date_lte=lte,
-        as_of=as_of, limit=tunables["page_limit"],
+        as_of=read_at, limit=tunables["page_limit"],
     )
     symbols = [c["symbol"] for c in contracts["option_contracts"]]
     if not symbols:
@@ -309,9 +312,37 @@ def run_cycle(context, *, cycle_id, now):
         _observe(context, result, clock=clock, contracts=contracts)
         return result
     snapshots = context.feed.fetch_snapshots(
-        symbols, as_of=as_of, feed=tunables["snapshot_feed"],
+        symbols, as_of=read_at, feed=tunables["snapshot_feed"],
         limit=tunables["page_limit"],
     )
+
+    # -- 2b. as_of, resolved when the read COMPLETED (6c) -------------------
+    # **A read is true as of when it FINISHED, not when it started**, and this
+    # is not a nicety. The chain above is seven pages plus a snapshot request;
+    # quotes that update while it is in flight are stamped AFTER a cycle that
+    # dated itself up front, and the screener rejects a quote it cannot
+    # reconcile with the read that claims to precede it — correctly — as
+    # `stale_quote`. Dating the cycle first therefore throws away the FRESHEST
+    # quotes in the chain, which are exactly the ones worth trading.
+    #
+    # This was measured, not reasoned about: on 2026-09-02 it was rejecting 201
+    # of 692 contracts and 114 of the 184 near the money, and NO value of
+    # `quote_max_age_seconds` recovered a single one of them, because none of
+    # them was old. See docs/CALIBRATION_thursday.md.
+    #
+    # `scripts/dry_run.py` has always done this (its `stamped()` says why, and
+    # the same function does it here). The cycle runner did not, and that is the
+    # defect this closes.
+    clock = context.feed.fetch_clock()
+    completed_at = parse_wire_ts(clock["timestamp"])
+    as_of = resolve_as_of(clock, calendar, now=completed_at)
+    contracts, snapshots = stamped(contracts, as_of), stamped(snapshots, as_of)
+    result["as_of"] = iso_utc(as_of)
+    result["read_seconds"] = round((completed_at - read_at).total_seconds(), 3)
+    # The clock the GOVERNOR rules on is this one, not the opening read: if the
+    # session closed while the chain was in flight, the honest answer is that it
+    # is closed now.
+    result["market_open"] = bool(clock["is_open"])
 
     # -- 3. screen (shape 6, fail closed) ----------------------------------
     screened = screen_chain(contracts, snapshots, as_of=as_of,
@@ -543,6 +574,11 @@ def format_cycle_line(result):
     parts = [f"cycle={result['cycle_id']}",
              f"as_of={result['as_of']}",
              f"open={str(bool(result['market_open'])).lower()}"]
+    if result.get("read_seconds") is not None:
+        # How long the chain took to come back. `as_of` is stamped at the END of
+        # it, so this is the window during which a quote can arrive and still be
+        # reconcilable with the read — the number behind GB-R-18.
+        parts.append(f"read={result['read_seconds']}s")
 
     if result["skipped"] == "market_closed":
         return " ".join(parts + ["skipped=market_closed"])
