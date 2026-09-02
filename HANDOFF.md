@@ -43,9 +43,10 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
   `alpaca-py` was already pinned. `GB_INTERFACES.md` was **NOT** touched in any
   of the ten commits.
 - **Tests: 132 passed, 1 skipped (the opt-in live band), 0 xfailed, 0 xpassed.**
-  All five suites fully armed: GB-S 17, GB-C 34, GB-L 27, GB-D 29, GB-E 23 (+2
-  probes). No assertion was changed to make any module pass; both new modules
-  were written to their suites and armed on the first run.
+  All five suites fully armed: **GB-S 17, GB-C 35, GB-L 27, GB-D 30, GB-E 24**
+  = 133 collected, of which the 1 skipped is GB-D's opt-in live smoke test. No
+  assertion was changed to make any module pass; both new modules were written to
+  their suites and armed on the first run.
 - **LEADS RELEASED.** I took the **data layer** lead at 11:35 and the **executor**
   lead at 12:20, both by declaration. **Both go back to Jhoosier with this
   block.** Everything I did to the executor is contract-conformant to seam 4/4a/4b
