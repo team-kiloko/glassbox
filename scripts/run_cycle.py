@@ -307,7 +307,12 @@ def run_cycle(context, *, cycle_id, now):
     screened = screen_chain(contracts, snapshots, as_of=as_of,
                             thresholds=context.screener_thresholds)
     accepted, rejected = screened["accepted"], screened["rejected"]
-    result["screened"] = {"accepted": len(accepted), "rejected": len(rejected)}
+    reasons = {}
+    for entry in rejected:
+        for reason in entry["reasons"]:
+            reasons[reason] = reasons.get(reason, 0) + 1
+    result["screened"] = {"accepted": len(accepted), "rejected": len(rejected),
+                          "reasons": reasons}
 
     # -- 3b. has this cycle already run? -----------------------------------
     # A cycle's identity is the CYCLE, not the proposal it happens to arrive at:
@@ -514,7 +519,13 @@ def format_cycle_line(result):
     parts.append(f"candidates={result['candidates']}")
 
     if result["skipped"] in ("no_candidates", "empty_chain"):
-        return " ".join(parts + [f"skipped={result['skipped']}"])
+        # WHICH test did the excluding, not merely that something did. A session
+        # that proposes nothing all afternoon is a session someone has to debug
+        # from this line alone, and "candidates=0" is not a finding.
+        parts.append(f"skipped={result['skipped']}")
+        parts.append("screen_rejects=" + _top(screened.get("reasons")))
+        parts.append("excluded=" + _top(result.get("exclusions")))
+        return " ".join(parts)
 
     parts.append(f"approved={result['approved']}/{result['candidates']}")
     for root in result["roots"]:
@@ -539,6 +550,14 @@ def format_cycle_line(result):
 # ---------------------------------------------------------------------------
 # Building a real context
 # ---------------------------------------------------------------------------
+
+def _top(counts, limit=4):
+    """The biggest few `name:count` pairs, or `none`. Keeps the line one line."""
+    if not counts:
+        return "none"
+    ranked = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:limit]
+    return ",".join(f"{name}:{count}" for name, count in ranked)
+
 
 def build_context(env_file, *, mode="autopilot", submit=True, session=None,
                   transport=None, sleep=time.sleep):

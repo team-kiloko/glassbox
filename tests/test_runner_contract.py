@@ -957,3 +957,44 @@ def test_gb_r_15_a_rehearsal_leaves_no_phantom_position(runner_chain, tmp_path,
             if r["id"] != root["id"]][0]["snapshot"]["account_state"]
     assert view["ledger"]["open_positions"] == {}
     assert view["ledger"]["open_risk"]["total"] == 0.0
+
+
+@requires_runner
+def test_gb_r_16_a_cycle_that_proposes_nothing_says_which_test_excluded_everything():
+    """GB-R-16: `candidates=0` is not a finding; the reason for it is.
+
+    A session that proposes nothing all afternoon has to be debugged from the
+    log line alone, at 15:00 on the one day that counts. So a cycle that built
+    no candidate reports the screener's rejection reasons AND the liquidity
+    window's exclusion counts, biggest first, on the same one line.
+    """
+    import run_cycle as R
+
+    line = R.format_cycle_line({
+        "cycle_id": "0042", "as_of": "2026-09-03T15:00:01Z", "market_open": True,
+        "screened": {"accepted": 9, "rejected": 683,
+                     "reasons": {"stale_quote": 651, "null_greeks": 40,
+                                 "missing_bid": 12, "missing_ask": 3,
+                                 "no_snapshot": 1}},
+        "candidates": 0, "approved": 0, "roots": [], "rejections": [],
+        "order_id": None, "order_status": None, "submitted": 0,
+        "skipped": "no_candidates",
+        "exclusions": {"short_delta_band": 7, "short_open_interest": 2},
+    })
+
+    assert "cycle=0042" in line and "skipped=no_candidates" in line
+    assert "screen_rejects=stale_quote:651" in line, "biggest reason first"
+    assert "null_greeks:40" in line
+    assert "excluded=short_delta_band:7,short_open_interest:2" in line
+    assert "no_snapshot:1" not in line, "the line stays a line; it is the top few"
+    assert "\n" not in line
+
+    # And with nothing to report, it says so rather than trailing an empty field.
+    bare = R.format_cycle_line({
+        "cycle_id": "0043", "as_of": "2026-09-03T15:15:01Z", "market_open": True,
+        "screened": {"accepted": 0, "rejected": 0, "reasons": {}},
+        "candidates": 0, "approved": 0, "roots": [], "rejections": [],
+        "order_id": None, "order_status": None, "submitted": 0,
+        "skipped": "empty_chain", "exclusions": {},
+    })
+    assert "screen_rejects=none" in bare and "excluded=none" in bare
