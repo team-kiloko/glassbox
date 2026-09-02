@@ -16,6 +16,54 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 10:20 UTC - teakeycee - OPEN
+- **Changed:** **The seam is SIGNED and SWAPPED. `GB_INTERFACES.md` is IN FORCE
+  as of 2026-09-02**, supersedes all prior versions, and changes now require
+  both humans. `GB_INTERFACES.SIGNOFF-DRAFT.md` is deleted; there is one file of
+  record again. Two commits: (1) every `OPEN (sign-off)` marker converted to
+  `DECIDED (2026-09-02)` — A1 Option B (`iron_condor` out of the enum; a condor
+  is a strategist-level composition of two `vertical_spread` proposals and never
+  crosses the seam as one structure), A2 (b) governor-maintains-reservations
+  from the ledger with the data layer reporting raw broker state only, A3 hybrid
+  with the core `checks[]` vocabulary pinned (`structure_valid, net_reconciles,
+  max_loss_cap, coverage, cash_floor, churn_guard, market_open`; extras under
+  `x_`), A4 (c) append-only chains with `root_id`, `submitted` added and
+  `partial_fill` marked non-terminal, A5 (a) + `market_open` as a submission-gating
+  governor check; (2) the human-ordered swap plus a minimal `CLAUDE.md`
+  alignment line naming the seam of record and the pinned checks vocabulary.
+  **C1-C4 CONFIRMED and applied** — they are wire-format facts, not preferences:
+  C1 per-share reconciliation with the `qty` factor dropped
+  (`net = sum(sign(action) * limit_price * ratio_qty)`, dollars = `net * 100 * qty`
+  computed by the governor only), C2 `ratio_qty` on legs with GCD 1 enforced in
+  `structure_valid` and `qty` at proposal level, C3 covered call / CSP are
+  single-leg orders not mleg with wire `limit_price = abs(net)` and direction from
+  `side`, C4 `position_intent` on order legs, opening-only for this event.
+  **`missing_ask` adopted** into the shape 6 reason vocabulary. Both signatures
+  recorded in the change log: teakeycee signed 2026-09-02; Jhoosier accepted per
+  `docs/SIGNOFF_REVIEW_jhoosier.md` and his 06:10 UTC block.
+  **Initial leads are now ACTIVE** per the seam's lead table — teakeycee: chain
+  screener, governor + contract suites, provenance ledger, strategist prompt
+  review; Jhoosier: data layer, MCP executor, LLM backend + strategist, NL intent
+  UX, dashboard, video + deck; Telegram digest OPTIONAL (stretch), lead
+  unassigned. No code, tests, or fixtures touched. No orders; dev account flat.
+- **Frozen:** `GB_INTERFACES.md` is IN FORCE — not frozen against use, frozen
+  against unilateral change: **any field change needs both humans, here first,
+  before code depends on it.** The `missing_ask` fixture and test are NOT in this
+  commit; `tests/fixtures/expected_verdicts.json` still names four codes while the
+  seam names five, and the seam is the authority until my screener session lands
+  the fifth. `thresholds.PROPOSED.json` still uncalibrated.
+- **Blocked:** Nothing on me. Sign-off is closed.
+- **Attack next:** **Jhoosier pod is GO on the data layer against the signed
+  seam** — account/positions/open orders, `clock()` + `calendar()` pass-throughs
+  (A5 depends on them), contracts with the expiration filter, snapshots failing
+  closed on null greeks. Note A2: your shape 2b output carries raw broker state
+  only, no `reserved_cash` / `reserved_shares` — the governor derives those from
+  the ledger. I'm building the **chain screener** today with `missing_ask` and the
+  counter-fixture, GB-S arming expected. **Freeze is tonight** — anything not in
+  flight by my CLOSE stays out of scope for this event.
+
+---
+
 ### 2026-09-02 06:10 UTC - Jhoosier - OPEN
 - **Changed:** Documentation only. (1) `docs/F2_wire_check.md`: F2 verified
   against Alpaca's SDK reference and Level 3 guide. Sign convention matches
