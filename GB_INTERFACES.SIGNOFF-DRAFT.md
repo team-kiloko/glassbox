@@ -12,9 +12,11 @@
 > a human swap it in over `GB_INTERFACES.md`. That swap is a separate, explicitly
 > human-ordered step. No AI pod performs it.
 >
-> Items marked **`OPEN (sign-off):`** are decisions that belong to the humans at
-> the touchpoint. They are presented with options and trade-offs; they are NOT
-> pre-decided here. Every open item is also listed in `docs/signoff_agenda.md`.
+> **2026-09-02:** every `OPEN (sign-off):` item in this file has been resolved and
+> is now marked **`DECIDED (2026-09-02)`** with its outcome. Positions and
+> reasoning are in `docs/SIGNOFF_REVIEW_teakeycee.md`,
+> `docs/SIGNOFF_REVIEW_jhoosier.md`, and `docs/F2_wire_check.md`. Both signatures
+> are recorded in the change log.
 
 ---
 
@@ -42,22 +44,26 @@ lead.
 
 | Module | Current lead |
 |--------|--------------|
-| Data layer | `set at sign-off` |
-| Chain screener | `set at sign-off` |
-| Strategist (NL intent → proposal) | `set at sign-off` |
-| Governor + contract suites | `set at sign-off` |
-| Order builder / executor (Alpaca MCP) | `set at sign-off` |
-| Provenance ledger | `set at sign-off` |
-| LLM backend layer | `set at sign-off` |
-| NL intent UX | `set at sign-off` |
-| Dashboard / report generation | `set at sign-off` |
-| Telegram digest | `set at sign-off` |
-| Video + deck | `set at sign-off` |
+| Data layer | **Jhoosier** |
+| Chain screener | **teakeycee** |
+| Strategist (NL intent → proposal) | **Jhoosier** |
+| Governor + contract suites | **teakeycee** |
+| Order builder / executor (Alpaca MCP) | **Jhoosier** |
+| Provenance ledger | **teakeycee** |
+| LLM backend layer | **Jhoosier** |
+| NL intent UX | **Jhoosier** |
+| Dashboard / report generation | **Jhoosier** |
+| Telegram digest | **OPTIONAL (stretch) — lead unassigned** |
+| Video + deck | **Jhoosier** |
 
-**`OPEN (sign-off):`** initial CURRENT LEADS for every row above. SETUP.md
-Phase 4.4 suggests an opening split — one side takes data layer + chain screener
-with golden fixtures, the other takes MCP wiring + NL intent path — but the
-assignment is the humans' call.
+**`DECIDED (2026-09-02):`** initial CURRENT LEADS as in the table above (agenda
+B1). teakeycee: chain screener, governor + contract suites, provenance ledger,
+and **strategist prompt review (adversarial)** — a review role on the Strategist
+row, not the lead of it. Jhoosier: data layer, MCP executor, LLM backend +
+strategist, NL intent UX, dashboard, video + deck. **Telegram digest is OPTIONAL
+/ stretch** — not on the critical path, no lead assigned, built only if the
+dashboard lands with time to spare. Leads become current when declared in a
+HANDOFF block and rotate freely from there.
 
 ---
 
@@ -87,10 +93,11 @@ Unchanged from the frozen file. PLACEHOLDER values.
 
 ```json
 { "underlying": "SPY",
-  "structure": "covered_call | cash_secured_put | vertical_spread | iron_condor",
+  "structure": "covered_call | cash_secured_put | vertical_spread",
+  "qty": 1,
   "legs": [ { "symbol": "SPY260918C00640000",
               "action": "buy|sell", "option_type": "call|put",
-              "strike": 0, "expiry": "YYYY-MM-DD", "qty": 1,
+              "strike": 0, "expiry": "YYYY-MM-DD", "ratio_qty": 1,
               "limit_price": 0.00 } ],
   "net_debit_credit": 0.00,
   "rationale": "plain-English why",
@@ -99,29 +106,24 @@ Unchanged from the frozen file. PLACEHOLDER values.
 
 #### 2a. `structure` is a CLOSED enum
 
-`covered_call | cash_secured_put | vertical_spread | iron_condor`. No `...`, no
-open extension. Governor scope is settled (CLAUDE.md): **defined-risk only** —
-covered calls, cash-secured puts, defined-risk verticals; iron condors only as
-two verticals. A `structure` value outside this enum is a governor rejection, not
-a passthrough.
+`covered_call | cash_secured_put | vertical_spread`. No `...`, no open extension.
+Governor scope is settled (CLAUDE.md): **defined-risk only** — covered calls,
+cash-secured puts, defined-risk verticals; iron condors only as two verticals. A
+`structure` value outside this enum is a governor rejection, not a passthrough.
 
-**`OPEN (sign-off):`** iron condor representation.
+**`DECIDED (2026-09-02):`** iron condor representation — **Option B, two composed
+`vertical_spread` proposals**. `iron_condor` is **removed from the enum** and does
+not appear anywhere in this seam.
 
-- **Option A — one 4-leg proposal** with `structure: "iron_condor"`. One order,
-  one ledger entry, one net credit. The governor must then know that the max loss
-  of a condor is *one wing*, not the sum of both, and must verify wing symmetry
-  itself.
-- **Option B — two `vertical_spread` proposals**, composed. Matches the settled
-  scope language ("iron condors only as two verticals") literally; max-loss math
-  stays the simple per-vertical case with no special case in the governor; costs
-  two orders and two ledger entries for what a human calls one position, and
-  leaves a window where one vertical fills and the other does not.
-
-This decision affects **max-loss math** (risk is one wing, not two), **order
-count** at the broker, and **ledger shape** (one entry vs. two linked entries).
-`structure: "iron_condor"` stays in the enum only under Option A; under Option B
-it is removed and the composition is a strategist-level concept that never
-crosses this seam.
+**Normative note:** an iron condor is a **strategist-level composition of two
+`vertical_spread` proposals** and **never crosses this seam as one structure**.
+Each vertical is proposed, governed, ordered, and ledgered independently. This
+matches the settled scope language literally, keeps max-loss math at the simple
+per-vertical case with no special case in the governor, and removes the need for
+the governor to verify wing symmetry. The accepted cost is two orders and two
+ledger entries for what a human calls one position, and a window in which one
+vertical fills and the other does not — acceptable on a paper account for this
+event, and to be revisited for any future live system.
 
 #### 2b. Legs carry `symbol`; the proposal carries `underlying`
 
@@ -143,32 +145,64 @@ This also matches the screener seam (shape 6), whose `accepted` entries are
 
 #### 2c. Prices: per-leg `limit_price` and proposal `net_debit_credit`
 
-Each leg gains **`limit_price`**. The proposal gains **`net_debit_credit`**
-(PLACEHOLDER sign convention: positive = net debit paid, negative = net credit
-received — confirm at sign-off if either pod's code reads it the other way).
+Each leg gains **`limit_price`**. The proposal gains **`net_debit_credit`**.
 
-**Reconciliation rule (normative):** `net_debit_credit` MUST equal the signed sum
-of each leg's `limit_price` × `qty`, with buys positive and sells negative. If it
-does not, the governor **rejects** the proposal. This is an arithmetic
+**Sign convention (normative, verified against the wire):** **positive = net debit
+paid, negative = net credit received.** Confirmed 1:1 against Alpaca's
+`LimitOrderRequest.limit_price` for `order_class: mleg` and the Level 3 guide
+(`docs/F2_wire_check.md`, sources listed there). Seam and wire agree with no
+translation layer for multi-leg orders.
+
+**Units (normative):** **per-share, for ONE unit of the spread.** This is the
+broker quoting convention: Alpaca's mleg `limit_price` is the net for one unit,
+and the **100x contract multiplier and the order `qty` are applied downstream**.
+Pinning the units matters as much as pinning the sign — a governor computing max
+loss under the wrong units assumption is off by a factor of 100 with no field
+that betrays it.
+
+**`DECIDED (2026-09-02)`** — **C1, reconciliation rule (normative):**
+
+```
+net_debit_credit = sum over legs of  sign(action) * limit_price * ratio_qty
+                   with buys positive and sells negative
+```
+
+**Per share, for one unit of the spread. The proposal `qty` is NOT a factor and
+MUST NOT appear in this sum** — the wire limit is per unit of spread and is
+independent of `qty`. If the reported `net_debit_credit` does not equal this sum,
+the governor **rejects** the proposal (`net_reconciles`). This is an arithmetic
 consistency check on the strategist's own numbers, not a market judgement, and it
 runs before any risk math.
+
+**Total dollar exposure = `net_debit_credit * 100 * qty`, computed by the governor
+only.** That figure is never carried in the proposal; the multiplier is explicit
+in governor math.
+
+**`DECIDED (2026-09-02)`** — **C2, `ratio_qty` on legs, `qty` on the proposal:**
+legs carry **`ratio_qty`** — positive integers in simplest form, **GCD across all
+legs = 1**, mirroring the wire exactly. **`qty` moves to the proposal level** and
+is the number of units of the structure. This removes the ambiguity of per-leg qty
+versus order qty. **The GCD = 1 rule is enforced by the governor as part of the
+`structure_valid` check.** Every structure in scope is 1:1 anyway.
 
 Note why the net matters: **Alpaca multi-leg orders execute on a single net
 limit.** The per-leg prices are the strategist's decomposition and are recorded
 for audit; **the net is the executable figure**, and it is what the order carries
-and what the governor's independent max-loss computation uses.
+and what the governor's independent max-loss computation uses. For the single-leg
+structures (`covered_call`, `cash_secured_put`) the wire mapping is different —
+see the normative note in shape 4 (C3).
 
 #### 2d. `claimed_max_loss` / `claimed_max_gain` — ADVISORY ONLY
 
 The frozen file's `max_loss` / `max_gain` are renamed to **`claimed_max_loss`**
 and **`claimed_max_gain`** and are marked **ADVISORY**.
 
-The governor **computes max loss independently** from strikes, qty, and net
-price, and **never trusts these fields** (CLAUDE.md: "The governor computes max
-loss independently; it never trusts a strategist-supplied figure"). The renaming
-is deliberate: a field called `max_loss` invites a reader — human or model — to
-treat it as the risk figure. `claimed_` makes the provenance unmissable at every
-call site.
+The governor **computes max loss independently** from strikes, `ratio_qty`, `qty`,
+and net price, and **never trusts these fields** (CLAUDE.md: "The governor
+computes max loss independently; it never trusts a strategist-supplied figure").
+The renaming is deliberate: a field called `max_loss` invites a reader — human or
+model — to treat it as the risk figure. `claimed_` makes the provenance unmissable
+at every call site.
 
 The fields are **kept, not deleted**. They are the strategist's stated belief,
 which is worth auditing: the GB-C governor suite will include a fixture where the
@@ -208,6 +242,23 @@ wrong file. That is why this note is normative text in the seam.
 Input to the governor. Without it, the defined-risk checks in 2e cannot run: the
 governor cannot confirm that a short call is covered or a short put is secured.
 
+**`DECIDED (2026-09-02):`** reservation producer — **option (b), the governor
+maintains `reserved_cash` / `reserved_shares` from the ledger.** The data layer
+**reports raw broker state only** and stays a dumb, honest reporter: its job is
+honesty, not judgement. The component that owns risk owns "this collateral is
+already spoken for", and the ledger literally drives the coverage story.
+
+**Data layer output — raw broker state, no reservations:**
+
+```json
+{ "as_of": "iso-utc",
+  "cash": 0.00,
+  "buying_power": 0.00,
+  "positions": { "SPY": { "shares": 0 } } }
+```
+
+**Governor's composed view — raw state plus ledger-derived reservations:**
+
 ```json
 { "as_of": "iso-utc",
   "cash": 0.00,
@@ -216,25 +267,28 @@ governor cannot confirm that a short call is covered or a short put is secured.
   "positions": { "SPY": { "shares": 0, "reserved_shares": 0 } } }
 ```
 
+The field names are unchanged from the pre-sign-off draft; only the **producer**
+changed. `reserved_cash` and `reserved_shares` are **derived by the governor from
+the provenance ledger** (shape 5) and never requested from or supplied by the data
+layer.
+
 PLACEHOLDER field names and values. Minimal by design — only what the
 defined-risk checks need:
 
 - **`positions[<underlying>].shares`** — share count per underlying, for
   covered-call coverage (100 shares per contract, per the contract `multiplier`).
+  Raw broker state, from the data layer.
 - **`positions[<underlying>].reserved_shares`** — shares already committed to
   other open short calls, so two covered calls cannot claim the same 100 shares.
-- **`cash`** and **`reserved_cash`** — for cash-secured-put coverage, so two puts
-  cannot claim the same collateral.
-- **`buying_power`** — for defined-risk verticals.
+  **Governor-derived from the ledger.**
+- **`cash`** — raw broker state, from the data layer.
+- **`reserved_cash`** — collateral already committed to other cash-secured puts,
+  so two puts cannot claim the same collateral. **Governor-derived from the
+  ledger.**
+- **`buying_power`** — for defined-risk verticals. Raw broker state.
 - **`as_of`** — the timestamp this account read is true as of, so a stale account
   read is detectable rather than silently trusted (same discipline as the
   screener's `as_of`; see shape 6b).
-
-**`OPEN (sign-off):`** whether `reserved_cash` / `reserved_shares` are computed by
-the data layer from open orders and positions, or maintained by the governor from
-the ledger. The governor-from-ledger route keeps reservation logic in the
-component that owns risk; the data-layer route keeps it closer to the broker's own
-view. Either way the field names stay; only the producer changes.
 
 ---
 
@@ -276,10 +330,31 @@ The governor is the ONLY component that may emit an order.
   have. `prompt_version` attaches to the **strategy proposal** (which is
   LLM-produced) and is carried on the **ledger entry** (shape 5).
 
-**`OPEN (sign-off):`** whether the `checks[]` rule vocabulary is pinned in this
-file (like the screener's reason codes) or left to the governor lead. Pinning it
-makes the dashboard and the GB-C suite stable against rule renames; leaving it
-open lets the governor lead add checks without a seam change.
+#### 3a. `checks[]` rule vocabulary — HYBRID, pinned core
+
+**`DECIDED (2026-09-02):`** hybrid. The **core `checks[]` vocabulary is pinned in
+this seam**:
+
+`structure_valid | net_reconciles | max_loss_cap | coverage | cash_floor | churn_guard | market_open`
+
+These names are stable seam vocabulary: the dashboard and the write-up name them,
+and the GB-C contract suite asserts against them, so a rename mid-crunch breaks
+the demo. Renaming or removing a core check **requires a seam change**, i.e. both
+humans.
+
+**The governor lead MAY add non-seam checks under an `x_` prefix** (e.g.
+`x_liquidity_floor`) **without a seam change.** The dashboard renders the core
+checks by name and any `x_` check generically.
+
+Notes on individual core checks:
+
+- **`structure_valid`** — the declared `structure` matches the actual leg
+  composition, and leg `ratio_qty` values are positive integers with GCD 1 (2c/C2).
+- **`net_reconciles`** — the per-share reconciliation rule in 2c/C1.
+- **`coverage`** — structure-vs-legs-vs-account-state (2e), against the governor's
+  composed account view (2b).
+- **`market_open`** — see 6c. Required to pass before order **submission**;
+  screening and proposing do not require it.
 
 ---
 
@@ -290,11 +365,19 @@ open lets the governor lead add checks without a seam change.
   "order_id": "...",
   "status": "filled | rejected | ...",
   "underlying": "SPY",
-  "legs": [ { "symbol": "SPY260918C00640000", "action": "buy|sell", "qty": 1 } ],
+  "qty": 1,
+  "legs": [ { "symbol": "SPY260918C00640000",
+              "side": "buy|sell", "ratio_qty": 1,
+              "position_intent": "buy_to_open|sell_to_open" } ],
   "net_limit_price": 0.00,
   "submitted_at": "iso-utc",
   "fill": { } }
 ```
+
+The order shape mirrors the wire: the **parent** carries `qty`, `type: limit`,
+`limit_price`, `time_in_force: day`, and (for 2–4 leg structures)
+`order_class: mleg`; **legs** carry `symbol`, `side`, `ratio_qty`, and
+`position_intent`. The proposal's per-leg `action` maps to the wire's `side`.
 
 #### `client_order_id` — normative
 
@@ -321,16 +404,52 @@ a crash mid-submit, or an ambiguous network failure — carries the same
 position. Without it, the safe answer to "did my order go through?" is a manual
 check, which is not a property this system can afford on a scored account.
 
+#### 4a. Single-leg structures are NOT `mleg` — normative
+
+**`DECIDED (2026-09-02)`** — **C3.** `covered_call` and `cash_secured_put` are
+**single-leg option orders, not `mleg`** — `mleg` requires 2 or more legs. Only
+`vertical_spread` goes out as `mleg`.
+
+On a **single-leg** order the wire `limit_price` is **always positive** and the
+direction comes from **`side`**. The seam's signed `net_debit_credit` therefore
+maps to the wire as:
+
+```
+limit_price = abs(net_debit_credit)
+side        = from the leg's action  (a CSP's negative credit -> side: sell)
+```
+
+**Never submit a negative limit price on a single-leg order.** This is the one
+place where the seam does not map 1:1 to the wire, and the mapping lives in **the
+executor's structure-tagged constructors** — one line, in the same place that
+already enforces the covering-asset argument (2e). It is recorded here so nobody
+re-derives it, or forgets it, somewhere else.
+
+#### 4b. `position_intent` — normative
+
+**`DECIDED (2026-09-02)`** — **C4.** Each order leg carries **`position_intent`**.
+For this event the pipeline is **opening-only**:
+
+```
+action buy   ->  position_intent: buy_to_open
+action sell  ->  position_intent: sell_to_open
+```
+
+`buy_to_close` / `sell_to_close` are **reserved** in the vocabulary for closing
+trades and are not emitted by this pipeline. If early exits are ever added, they
+use the `_to_close` intents and this note is what they amend.
+
 ---
 
 ### 5. Ledger entry  (the audit record; consumed by the dashboard)
 
 ```json
 { "id": "...",
+  "root_id": null,
   "ts": "iso-utc",
   "as_of": "iso-utc",
   "mode": "approve | autopilot",
-  "status": "governor_rejected | broker_rejected | filled | partial_fill | expired | canceled",
+  "status": "governor_rejected | submitted | broker_rejected | filled | partial_fill | expired | canceled",
   "config_version": "sha256:...",
   "prompt_version": "...",
   "code_version": "<git-sha>",
@@ -351,25 +470,52 @@ from a truncated write, a serialization bug, or a corrupted record; a `null` is 
 positive statement that the pipeline reached this point and stopped here. In an
 audit record that distinction is the whole point.
 
-#### Entry-level `status` vocabulary — PROPOSED (draft)
+#### 5a. In-flight status — append-only chains, root id
 
-`governor_rejected | broker_rejected | filled | partial_fill | expired | canceled`
+**`DECIDED (2026-09-02):`** **option (c) — each transition is a new appended entry
+referencing the root entry's id.** This is **forced, not preferred**
+(`docs/SIGNOFF_REVIEW_teakeycee.md` finding F1, accepted by Jhoosier): shape 4
+requires the ledger entry to exist **before** submission so `client_order_id` can
+embed its `id`; the fill arrives **after** the entry exists; and this file's
+append-only rule forbids writing it back. Options (a) and (b) each contradict one
+of those three, so (c) is the only consistent choice.
 
-Marked PROPOSED: this is a first draft of the vocabulary, not a calibrated one.
-It deliberately separates `governor_rejected` from `broker_rejected` — "we
-refused" and "they refused" are different facts about the system, and the
-dashboard should never blur them.
+The chain:
 
-**`OPEN (sign-off):`** whether the vocabulary needs `submitted` / `pending` for
-the window between submission and a terminal state, and whether an entry's
-`status` may be updated in place as an order progresses — which collides with the
-append-only rule below. Options: (a) status is terminal-only and an in-flight
-order has no entry status yet; (b) status may advance through non-terminal values
-in place; (c) each transition is a new appended entry referencing the prior id.
+1. **Root entry — the decision entry.** Written **pre-submission**, with
+   `order: null` and `fill: null`, carrying `snapshot` / `proposal` / `verdict` and
+   the full provenance block. Its `root_id` is **`null`** — a root entry is its own
+   root. Its `id` is what `client_order_id` embeds.
+2. **Follow-up entries** are appended for **submission, fill, partial fill, or
+   broker rejection**, each with **`root_id` set to the root entry's `id`**. A
+   follow-up carries the new `status` and the `order` / `fill` payload that
+   transition produced.
+
+**The dashboard folds chains by root id** — one position, one row, its history
+expandable underneath.
+
+#### Entry-level `status` vocabulary
+
+`governor_rejected | submitted | broker_rejected | filled | partial_fill | expired | canceled`
+
+- **`submitted`** is added for the in-flight window between submission and a
+  terminal state (agenda A4).
+- **`partial_fill` is NON-TERMINAL.** Alpaca's `partially_filled` is not an end
+  state, and a terminal-only vocabulary misfiles it. A `partial_fill` follow-up may
+  be succeeded by further follow-ups on the same root — a later `filled`,
+  `expired`, or `canceled`.
+- `governor_rejected` and `broker_rejected` stay deliberately separate — "we
+  refused" and "they refused" are different facts about the system, and the
+  dashboard should never blur them.
+
+Still marked **PROPOSED** as to completeness: this is a working vocabulary, and
+adding a value is a seam change.
 
 #### Provenance fields
 
 - **`id`** — the entry id. The scheme `client_order_id` builds on (shape 4).
+- **`root_id`** — `null` on a root (decision) entry; the root entry's `id` on every
+  follow-up. The fold key for the dashboard.
 - **`as_of`** — the **data timestamp** the run screened and priced against.
   Distinct from `ts` (when the entry was written). Two runs at different wall
   clocks against the same `as_of` should produce the same verdicts; that is what
@@ -388,8 +534,9 @@ prompt, what code, and who said yes.
 #### Append-only — normative
 
 **Ledger entries are never mutated and never deleted; a correction is a new entry
-that references the id of the entry it corrects.** (See the open item under
-`status` above, which is the one place this rule is under discussion.)
+that references the id of the entry it corrects.** Order progress is handled the
+same way, by appended follow-ups chained on `root_id` (5a). There is no in-place
+status update anywhere in this system.
 
 ---
 
@@ -421,9 +568,20 @@ screen_chain(contracts, snapshots, as_of, thresholds) -> result
 
 #### Reason-code vocabulary — PROPOSED
 
-From `tests/fixtures/expected_verdicts.json`:
+`null_greeks | missing_bid | missing_ask | stale_quote | no_snapshot`
 
-`null_greeks | missing_bid | stale_quote | no_snapshot`
+**`DECIDED (2026-09-02):`** **`missing_ask` is added** (agenda F3, both pods
+accept). `tests/fixtures/expected_verdicts.json` named only `missing_bid`, but
+**`thresholds.PROPOSED.json` requires a TWO-SIDED quote**: a contract with a bid
+and no ask must be rejected under that rule and previously had no code to be
+rejected *with*, which would either violate GB-S-06's machine-readable-reason
+guarantee or force a mislabel. It matters beyond symmetry: verticals **buy** a
+leg, so a missing ask is un-executable on the long side.
+
+> **Not yet in the fixtures.** The counter-fixture (greeks complete, fresh, bid
+> present, ask absent) and its test land in teakeycee's screener session, as the
+> screener lead — **not in the sign-off commit**. Until then `expected_verdicts.json`
+> names four codes and the seam names five; the seam is the authority.
 
 A contract may carry more than one reason; **order is not significant**. The
 screener **fails closed**: a contract it cannot fully evaluate is rejected with a
@@ -465,29 +623,31 @@ GB-S-10.
 uncalibrated** — chosen so the stale fixture sits unambiguously outside it and
 every fresh case unambiguously inside. It is not a trading judgement.
 
-#### 6c. Caller policy for choosing `as_of` — PROPOSED, `OPEN (sign-off):`
+#### 6c. Caller policy for choosing `as_of` — DECIDED
 
-The screener's `as_of` semantics (6b) are settled. **What the caller passes** is
+The screener's `as_of` semantics (6b) are settled. **What the caller passes** was
 not, and teakeycee flagged it as a both-humans decision (HANDOFF 2026-08-30 22:07
 UTC): any quote is hours old outside market hours, so a naive freshness rule
 rejects everything on a weekend.
 
-Proposed policy, **PROPOSED and OPEN**:
+**`DECIDED (2026-09-02):`** **option (a) as proposed, plus a `market_open` governor
+check.**
 
 - Market **open** → `as_of = now`.
 - Market **closed** → `as_of = the last close`, obtained from Alpaca's
   **`/v2/clock`** and **`/v2/calendar`** endpoints. **No hand-rolled market
   calendar** — holidays, half-days, and early closes are exactly the cases a
   hand-rolled calendar gets wrong, and getting one wrong means either screening
-  against dead data or refusing to screen on a live day.
+  against dead data or refusing to screen on a live day. The data layer exposes
+  `clock()` and `calendar()` pass-throughs so no component hand-rolls one.
+- **Screening and proposing run at any time** (demos, dry runs, off-hours
+  preparation).
+- **Order submission requires `market_open` to pass in the governor's `checks`**
+  (shape 3a). The freshness threshold does little work off-hours, so the safety
+  lives in the governor, where it belongs — and the scored account can still trade
+  at the open.
 
-Alternatives to weigh at the touchpoint: **market-hours-only screening** (never
-run when closed; simplest, but concedes any off-hours preparation), versus
-**closed-market screening against the last close** (allows off-hours runs, but
-every quote is by definition maximally stale relative to `now`, and the freshness
-threshold is then doing no work).
-
-This affects **run scheduling** and the **scored P&L window**, which is why it is
+This affects **run scheduling** and the **scored P&L window**, which is why it was
 a decision and not a default.
 
 ---
@@ -498,7 +658,6 @@ a decision and not a default.
 - 2026-08-31 — **sign-off draft prepared** (Jhoosier pod, at teakeycee's
   Attack-next request). `GB_INTERFACES.md` itself untouched and still frozen;
   this is a proposed replacement awaiting review.
-  **Both signatures pending: teakeycee `___`, Jhoosier `___`.**
 
   Shapes touched: header and parties relabelled to teakeycee / Jhoosier;
   ownership table replaced with a CURRENT LEAD table (leads `set at sign-off`);
@@ -517,3 +676,62 @@ a decision and not a default.
   producer for account state; `checks[]` rule vocabulary; ledger `status`
   in-flight handling; caller `as_of` policy; initial CURRENT LEADS. Full list,
   with the non-shape Phase 4.1 decisions, in `docs/signoff_agenda.md`.
+
+- 2026-09-02 — **SIGN-OFF. Every open item resolved.** Sources:
+  `docs/SIGNOFF_REVIEW_teakeycee.md`, `docs/SIGNOFF_REVIEW_jhoosier.md`,
+  `docs/F2_wire_check.md`, `docs/signoff_agenda.md`.
+
+  Decided this entry:
+
+  - **A1 — iron condor: Option B.** `iron_condor` removed from the `structure`
+    enum (§2, §2a); a condor is a strategist-level composition of two
+    `vertical_spread` proposals and never crosses the seam as one structure.
+  - **A2 — reservations: (b) governor-from-ledger.** §2b split into a data-layer
+    output (raw broker state, no reservations) and the governor's composed view;
+    `reserved_cash` / `reserved_shares` are governor-derived from the ledger.
+  - **A3 — `checks[]`: hybrid.** Core vocabulary pinned in §3a:
+    `structure_valid, net_reconciles, max_loss_cap, coverage, cash_floor,
+    churn_guard, market_open`. Governor lead may add non-seam checks under an
+    `x_` prefix without a seam change.
+  - **A4 — ledger status in flight: (c),** forced by the id-first + append-only
+    architecture (teakeycee F1). §5a: root decision entry written pre-submission
+    with `order`/`fill` null and `root_id: null`; submission, fill, partial fill,
+    and broker rejection are appended follow-ups carrying `root_id`. `submitted`
+    added to the status vocabulary; `partial_fill` recorded as NON-terminal.
+    Dashboard folds chains by root id.
+  - **A5 / B4 — `as_of`: (a) plus `market_open`.** §6c: caller `as_of = now` when
+    open, last close via `/v2/clock` + `/v2/calendar` when closed, no hand-rolled
+    calendars; screening and proposing run any time, order submission requires
+    `market_open` to pass in the governor's checks.
+  - **A6 / F2 — sign convention verified, units pinned, four wire amendments
+    applied** (`docs/F2_wire_check.md`):
+    - **C1** — reconciliation is per-share for one unit of spread, the `qty`
+      factor is dropped:
+      `net_debit_credit = sum(sign(action) * limit_price * ratio_qty)`;
+      total dollars = `net * 100 * qty`, computed by the governor only (§2c).
+    - **C2** — legs carry `ratio_qty` (positive integers, GCD 1 enforced as a
+      `structure_valid` check); `qty` moves to the proposal level (§2, §2c).
+    - **C3** — normative note that `covered_call` and `cash_secured_put` are
+      single-leg orders, not `mleg`: wire `limit_price = abs(net)` with direction
+      from `side`; mapping lives in the executor's structure-tagged constructors;
+      never submit a negative limit on a single-leg order (§4a).
+    - **C4** — `position_intent` added to the order shape; opening-only mapping
+      for this event (`buy -> buy_to_open`, `sell -> sell_to_open`); `_to_close`
+      reserved (§4b).
+  - **F3 — `missing_ask` added** to the shape 6 screener reason-code vocabulary;
+    the two-sided-quote threshold requires it. Counter-fixture and test land in
+    teakeycee's screener session, not in this commit.
+  - **B1 — CURRENT LEAD table filled.** teakeycee: chain screener, governor +
+    contract suites, provenance ledger, strategist prompt review. Jhoosier: data
+    layer, MCP executor, LLM backend + strategist, NL intent UX, dashboard,
+    video + deck. Telegram digest: OPTIONAL (stretch), lead unassigned.
+
+  Confirmed in passing, unchanged: A7 (`config_version` content hash), A8
+  (`client_order_id` scheme), A9 (`claimed_*` advisory), A10 (nullable
+  `order`/`fill`, append-only — as modified by A4(c)), A11 (no file I/O in
+  `screen_chain`).
+
+  **Signatures — BOTH RECORDED.**
+  - **teakeycee — signed 2026-09-02** (this commit).
+  - **Jhoosier — accepted 2026-09-02**, per `docs/SIGNOFF_REVIEW_jhoosier.md`
+    ("Ready to sign") and his HANDOFF block of 2026-09-02 06:10 UTC.
