@@ -16,6 +16,80 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 10:30 UTC - teakeycee - CLOSE
+- **Changed:** **The chain screener has landed and the GB-S suite is ARMED and
+  GREEN: 17 passed, 0 xfailed, 0 xpassed.** No test was changed to make it pass;
+  the strict-xfail band deactivated on its own when the module appeared. Two
+  commits.
+  (1) `Fixtures: five-code vocabulary, missing_ask case + GB-S test` — the gap
+  the sign-off commit knowingly left is **CLOSED**. New counter-fixture
+  **`SPY260918C00760000`** (far-OTM call, complete greeks, quote fresh at 25 s,
+  real 0.04 bid, offer pulled: `ap: 0, as: 0`), isolated so `missing_ask` is the
+  only thing between it and acceptance and a mislabel as `missing_bid` fails the
+  suite. `expected_verdicts.json` now names **all five codes** and the new
+  contract as `reject ["missing_ask"]`; the slice is **8 contracts, 2 accept /
+  6 reject**. `conftest.has_ask()` added mirroring `has_bid()`; **GB-S-13**
+  asserts rejection under that code specifically; **GB-S-F03** proves the new
+  defect is present and isolated. Fixtures README: the missing-ask trap is now
+  trap 2 (rest renumbered), slice table updated, and a new **"Reason-code
+  vocabulary — the seam is the authority"** section records that the fixtures
+  mirror `GB_INTERFACES.md` shape 6 and never define it. Both test-module
+  docstrings corrected — they still described the seam as frozen pre-sign-off
+  and screener-less.
+  (2) `Screener: screen_chain lands, GB-S suite armed and green` —
+  **`glassbox/screener.py`** exposing `screen_chain(contracts, snapshots, as_of,
+  thresholds)` per shape 6, plus a minimal `glassbox/__init__.py` and a
+  `pytest.ini` putting the repo root on `sys.path` (conftest probes for the
+  module at import time, so it has to be config, not test setup). **No new
+  dependencies; `requirements.txt` unchanged.** Pure by contract: no file I/O
+  (the caller loads thresholds and passes the mapping in per 6a — **no built-in
+  defaults, a missing key raises**), no clock (age is `as_of - quote.t`, 6b), no
+  randomness. Every input contract lands in exactly one output list, in input
+  order; reasons come out in the seam's vocabulary order. Fail-closed decisions
+  worth your attack: a quote dated **after** `as_of` is rejected `stale_quote`
+  rather than treated as very fresh; a snapshot whose quote is absent or
+  unparseable is rejected, not given the benefit of the doubt; a greek must be a
+  **finite number** (None, absent or non-numeric fails); `bp/bs` and `ap/as`
+  zero pairs read as NO BID / NO ASK, never $0.00. **Data quality is rejected
+  with a code; a schema violation raises** (no symbol, unparseable strike, a
+  `type` that is neither call nor put) — the five-code vocabulary is closed and
+  none of them would honestly describe a broken record. Verdict counts over the
+  full slice: `null_greeks` 2, `missing_bid` 2, `missing_ask` 1, `stale_quote`
+  1, `no_snapshot` 1 — 7 codes across 6 rejected contracts, matching the golden
+  file symbol by symbol. **`GB_INTERFACES.md` was NOT touched.** No orders; dev
+  account untouched and flat.
+- **Frozen:** **`GB_INTERFACES.md` — both-humans rule, unchanged.** One
+  consequence to note rather than fix unilaterally: the seam's blockquote under
+  shape 6 saying the `missing_ask` counter-fixture is **"Not yet in the
+  fixtures"** and that "the seam is the authority" **is now stale** — the
+  fixtures caught up this session. It is a note about a closed gap, not a field
+  change, and the fixtures README records the closure; **striking it from the
+  seam still needs both of us**, so I left it. `thresholds.PROPOSED.json` is
+  **still PROPOSED and uncalibrated** — `quote_max_age_seconds: 300` remains a
+  placeholder chosen to separate the fixtures, not a trading judgement, and
+  nothing trades until a real config supersedes it. The screener's five-code
+  vocabulary is closed: extra codes need the seam first.
+- **Blocked:** Nothing on my side. Next on me is the **GB-C governor contract
+  suite**.
+- **Attack next:** **Jhoosier** — (1) the **data layer** against the signed
+  seam: emit **shape 6 inputs** (`/v2/options/contracts` bodies with the
+  `expiration_date_gte/lte` filter, `/v1beta1/options/snapshots` at
+  `feed=indicative`) and **shape 2b raw account state** — raw broker state only,
+  no `reserved_cash` / `reserved_shares`, those are governor-derived from the
+  ledger per A2 (b). `clock()` and `calendar()` pass-throughs still needed for
+  6c. (2) **Attack the screener with counter-fixtures from your live-test
+  notes.** It is armed, so a fixture that should reject and does not is now a
+  red test rather than an argument. The two places I most want hit are
+  **pagination** (my slice is single-page with `next_page_token: null`; the real
+  endpoint paginates nearest-expiry-first, and I do not consume the token —
+  decide with me whether paging belongs in the data layer or the screener) and
+  **any partial-greeks reality**: my fixtures assume `greeks` is either null or
+  complete, and if the live feed ever returns a greeks object with one null
+  member, I want your capture. Symbols absent from `snapshots`, future-dated
+  timestamps, and non-numeric greeks are all handled — try to break them anyway.
+
+---
+
 ### 2026-09-02 10:20 UTC - teakeycee - OPEN
 - **Changed:** **The seam is SIGNED and SWAPPED. `GB_INTERFACES.md` is IN FORCE
   as of 2026-09-02**, supersedes all prior versions, and changes now require
