@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -824,3 +824,206 @@ def rejected_root(entries):
         if entry["root_id"] is None and not entry["verdict"]["approved"]:
             return entry
     raise AssertionError("the ledger goldens carry no rejected root")
+
+
+# ---------------------------------------------------------------------------
+# GB-R — the session runner
+#
+# The runner is the only component with a loop in it, and the only one that
+# decides to act more than once. Everything it drives is already under contract,
+# so GB-R is not about screening or governing — it is about what an UNATTENDED
+# process does: when it declines to act, when it stops, what it writes down, and
+# whether running the same cycle twice opens two positions.
+#
+# It reaches no network. The venue below serves a hand-built chain with a known
+# answer, and the broker below records every submission and never existed.
+# ---------------------------------------------------------------------------
+
+RUNNER_FIXTURES = FIXTURES / "runner"
+
+_RUNNER_CANDIDATES = ("run_cycle",)
+_SESSION_CANDIDATES = ("run_session",)
+
+RUNNER, RUNNER_MISSING_REASON = _import_module(_RUNNER_CANDIDATES, "run_cycle")
+RUNNER_MISSING = RUNNER is None
+
+SESSION, SESSION_MISSING_REASON = _import_module(_SESSION_CANDIDATES, "run_session")
+SESSION_MISSING = SESSION is None
+
+requires_runner = pytest.mark.xfail(
+    RUNNER_MISSING,
+    reason=f"the cycle runner has not landed yet: {RUNNER_MISSING_REASON}",
+    strict=True,
+)
+
+requires_session = pytest.mark.xfail(
+    SESSION_MISSING,
+    reason=f"the session loop has not landed yet: {SESSION_MISSING_REASON}",
+    strict=True,
+)
+
+
+@pytest.fixture(scope="session")
+def runner_chain():
+    with (RUNNER_FIXTURES / "chain.json").open() as fh:
+        return json.load(fh)
+
+
+@pytest.fixture(scope="session")
+def runner_config():
+    with (CONFIG_DIR / "runner.PROPOSED.json").open() as fh:
+        return json.load(fh)
+
+
+def occ_symbol(underlying, expiry, option_type, strike):
+    """The OCC symbol for a contract, built the way the venue writes it."""
+    year, month, day = expiry.split("-")
+    return (f"{underlying}{year[2:]}{month}{day}"
+            f"{'C' if option_type == 'call' else 'P'}{int(round(strike * 1000)):08d}")
+
+
+class FakeVenue:
+    """Alpaca, as far as the data layer can tell. There is no network in it.
+
+    Serves `/v2/clock`, `/v2/calendar`, `/v2/options/contracts`,
+    `/v1beta1/options/snapshots`, `/v2/account` and `/v2/positions` from the
+    hand-built chain fixture, and refuses `/orders` outright — the data path may
+    not submit, and a fake that would let it is not a fake of this system.
+
+    **Quote timestamps are stamped relative to `as_of`**, not baked into the
+    fixture: `quote_max_age_seconds` is 300, so a fixture carrying fixed
+    timestamps would go stale against its own suite the moment the reference
+    date moved. `quote_age_seconds` is how far behind `as_of` they sit, and a
+    test that wants `stale_quote` sets it past the threshold.
+    """
+
+    def __init__(self, chain, *, as_of, is_open=True, quote_age_seconds=30,
+                 account=None):
+        self.chain = chain
+        self.as_of = as_of
+        self.is_open = is_open
+        self.quote_age_seconds = quote_age_seconds
+        self.account = dict(account or chain["account"])
+        self.requests = []
+
+    # -- the wire ----------------------------------------------------------
+
+    def get(self, url, headers=None, params=None, timeout=None):
+        path = "/" + url.split("://", 1)[-1].partition("/")[2]
+        assert "/orders" not in path, (
+            f"the data path asked for {path!r}. Nothing in the data layer may "
+            f"reach an orders endpoint; the executor holds its own transport"
+        )
+        self.requests.append({"path": path, "params": dict(params or {})})
+        route = getattr(self, "_route_" + path.strip("/").replace("/", "_").replace("v1beta1", "beta"), None)
+        if route is None:
+            raise AssertionError(f"FakeVenue has no route for {path!r}")
+        return RecordedResponse(200, route(dict(params or {})))
+
+    # -- routes ------------------------------------------------------------
+
+    def _route_v2_clock(self, params):
+        stamp = self.as_of.isoformat().replace("+00:00", "Z")
+        return {"timestamp": stamp, "is_open": self.is_open,
+                "next_open": "2026-09-03T09:30:00-04:00",
+                "next_close": "2026-09-02T16:00:00-04:00"}
+
+    def _route_v2_calendar(self, params):
+        # Two real sessions, so a CLOSED clock has a last close to resolve
+        # against rather than the run raising (6c).
+        return [{"date": "2026-09-01", "open": "09:30", "close": "16:00"},
+                {"date": "2026-09-02", "open": "09:30", "close": "16:00"}]
+
+    def _route_v2_options_contracts(self, params):
+        gte, lte = params.get("expiration_date_gte"), params.get("expiration_date_lte")
+        expiry = self.chain["expiry"]
+        contracts = []
+        if (gte is None or gte <= expiry) and (lte is None or expiry <= lte):
+            for spec in self.chain["contracts"]:
+                contracts.append({
+                    "symbol": self.symbol_of(spec),
+                    "underlying_symbol": self.chain["underlying"],
+                    "type": spec["type"],
+                    "strike_price": f"{spec['strike']}",
+                    "expiration_date": expiry,
+                    "open_interest": str(spec["open_interest"]),
+                    "status": "active", "tradable": True, "multiplier": "100",
+                })
+        return {"option_contracts": contracts, "next_page_token": None}
+
+    def _route_beta_options_snapshots(self, params):
+        asked = set((params.get("symbols") or "").split(","))
+        stamp = (self.as_of - timedelta(seconds=self.quote_age_seconds))
+        quoted = stamp.isoformat().replace("+00:00", "Z")
+        snapshots = {}
+        for spec in self.chain["contracts"]:
+            symbol = self.symbol_of(spec)
+            if symbol not in asked:
+                continue
+            snapshots[symbol] = {
+                "greeks": dict(self.chain["greeks_filler"], delta=spec["delta"]),
+                "latestQuote": {"bp": spec["bid"], "bs": self.chain["bid_size"],
+                                "ap": spec["ask"], "as": self.chain["ask_size"],
+                                "t": quoted},
+            }
+        return {"snapshots": snapshots, "next_page_token": None}
+
+    def _route_v2_account(self, params):
+        return {"id": "b0000000-0000-4000-8000-00000000cafe",
+                "account_number": self.account["account_number"],
+                "status": self.account["status"],
+                "cash": f"{self.account['cash']:.2f}",
+                "equity": f"{self.account['equity']:.2f}",
+                "buying_power": f"{self.account['buying_power']:.2f}"}
+
+    def _route_v2_positions(self, params):
+        # Empty on purpose: this account holds no equities, and an option
+        # position is a contract, not a share (2b RAW).
+        return []
+
+    # -- helpers -----------------------------------------------------------
+
+    def symbol_of(self, spec):
+        return occ_symbol(self.chain["underlying"], self.chain["expiry"],
+                          spec["type"], spec["strike"])
+
+
+class FakeBroker(FakeTransport):
+    """A broker that never existed, which also answers `/v2/account`.
+
+    `statuses` is the sequence of Alpaca statuses a submitted order walks
+    through as it is polled — `["accepted", "filled"]` is the ordinary life of a
+    marketable limit order, and `["accepted"]` is one that simply never fills,
+    which is a fact about the market and not a failure.
+    """
+
+    def __init__(self, responses, account, statuses=("accepted", "filled")):
+        super().__init__(responses, status=statuses[0])
+        self.account = account
+        self.account_reads = 0
+        self.statuses = list(statuses)
+        self.progress = {}
+
+    def get_account(self):
+        self.account_reads += 1
+        return self.account
+
+    def get_order_by_client_id(self, client_order_id):
+        self.lookups.append(client_order_id)
+        if client_order_id not in self.orders:
+            return None
+        step = self.progress.get(client_order_id, 0)
+        step = min(step + 1, len(self.statuses) - 1)
+        self.progress[client_order_id] = step
+        body = json.loads(json.dumps(self.responses[self.statuses[step]]))
+        body["client_order_id"] = client_order_id
+        self.orders[client_order_id] = body
+        return body
+
+
+class BlindBroker(FakeBroker):
+    """A broker that cannot say who it is. 'I could not check' is not 'it is fine'."""
+
+    def get_account(self):
+        self.account_reads += 1
+        raise RuntimeError("the account endpoint is unavailable")

@@ -1,0 +1,44 @@
+{
+  "_status": "HAND-BUILT, SYNTHETIC. No live capture is claimed and no account data appears here.",
+
+  "_note": "The chain GB-R's fake venue serves. It exists so the runner's cycle can be driven end to end — screen, propose, govern, submit, follow, ledger — with a known answer at every step, under the REAL scored config (config/thresholds.competition.json) rather than a test-only one. Quote timestamps are not in this file: the fake venue stamps every quote relative to the as_of of the cycle being run, because quote_max_age_seconds is 300 and a fixture with baked-in timestamps would go stale against its own suite.",
+
+  "_the_answer": "Exactly ONE 5-wide put vertical survives the scored liquidity window: short SPY260903P00640000 / long SPY260903P00635000, priced 0.90 bid / 0.35 ask for a net credit of 0.55 and a computed max loss of 445.00 per lot. Every other pair is excluded by a DIFFERENT test, so a change that breaks one of them is legible. GB-R-F02 asserts all of it independently of the runner.",
+
+  "underlying": "SPY",
+  "expiry": "2026-09-03",
+
+  "_contracts_note": "`open_interest` and the greeks are read by the harness's liquidity window (min_open_interest 500, short-leg |delta| 0.15..0.35); all five greeks are present on every contract because the SCREENER fails closed on a null one and that is a different test's job (GB-S).",
+  "contracts": [
+    {"strike": 633.0, "type": "put", "open_interest": 120, "bid": 0.15, "ask": 0.20,
+     "delta": -0.07, "_excluded_by": "open_interest, as the long wing of the 638"},
+    {"strike": 635.0, "type": "put", "open_interest": 4200, "bid": 0.30, "ask": 0.35,
+     "delta": -0.12, "_role": "THE LONG WING. |delta| is outside the band, which does not matter: the band applies to the short leg only, because it is the leg that says where the position sits relative to spot."},
+    {"strike": 638.0, "type": "put", "open_interest": 3100, "bid": 0.55, "ask": 0.60,
+     "delta": -0.20, "_excluded_by": "its own wing — the 633 has no open interest"},
+    {"strike": 640.0, "type": "put", "open_interest": 5600, "bid": 0.90, "ask": 0.95,
+     "delta": -0.28, "_role": "THE SHORT LEG. Inside the delta band, deep open interest, two-sided."},
+    {"strike": 643.0, "type": "put", "open_interest": 8100, "bid": 2.10, "ask": 2.20,
+     "delta": -0.50, "_excluded_by": "delta_band, and by sitting at/above the estimated spot"},
+    {"strike": 640.0, "type": "call", "open_interest": 6400, "bid": 3.60, "ask": 3.70,
+     "delta": 0.72, "_role": "spot estimation only (put-call parity); no decision depends on it"},
+    {"strike": 643.0, "type": "call", "open_interest": 7700, "bid": 2.05, "ask": 2.15,
+     "delta": 0.50, "_role": "spot estimation only"}
+  ],
+
+  "_greeks_note": "gamma/theta/vega/rho are plausible fillers with no test resting on them; only delta is read by anything.",
+  "greeks_filler": {"gamma": 0.031, "theta": -0.42, "vega": 0.11, "rho": 0.02},
+
+  "_sizes_note": "bid/ask sizes exist because the screener treats bp==0/bs==0 as NO BID rather than a price of zero (shape 6). Every contract here is genuinely two-sided.",
+  "bid_size": 40,
+  "ask_size": 55,
+
+  "_account_note": "What the fake venue's /v2/account and /v2/positions report. equity 100,000.00 makes the scored config's fractions land on round numbers: max_loss_cap 2% = 2,000.00 per structure, x_total_open_risk 10% = 10,000.00 across the book. Positions are EMPTY: this account holds no equities, and an option position is a contract, not a share (2b RAW).",
+  "account": {
+    "account_number": "PA0000RUNNERTEST",
+    "status": "ACTIVE",
+    "cash": 100000.0,
+    "equity": 100000.0,
+    "buying_power": 400000.0
+  }
+}

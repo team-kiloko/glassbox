@@ -1,0 +1,18 @@
+{
+  "_status": "PROPOSED — NOT calibrated. Every number here is a first guess about how an autonomous session should be paced, not a trading judgement and not a risk limit. The risk limits are the GOVERNOR's, and nothing in this file can loosen one.",
+
+  "_note": "Read by scripts/run_session.py and scripts/run_cycle.py. Per CLAUDE.md, tunables live in config and never in code: the interval, the pause file, the error tolerance and the order-follow window are all here so that changing how the loop paces itself is a config edit with a diff, not a number someone moved inside a script.",
+
+  "_cycle_interval_rationale": "PROPOSED 900s (15 minutes). Long enough that a session is a handful of considered decisions rather than a stream of them, and short enough to react inside a trading day. It is deliberately far below churn_window_seconds (3600) in the governor config: the loop is NOT what stops a position stacking on an underlying — the governor is — and an interval that happened to exceed the churn window would hide that fact by making it never come up.",
+  "cycle_interval_seconds": 900,
+
+  "_max_consecutive_errors_rationale": "PROPOSED 2. One raised cycle is a transient: a venue hiccup, a page that did not come back. Two in a row is the system telling you something it cannot fix by trying again, and an unattended loop that keeps retrying into a fault is how a session spends an afternoon doing nothing while appearing busy. A successful cycle resets the count, so this counts CONSECUTIVE failures, never total ones.",
+  "max_consecutive_errors": 2,
+
+  "_pause_file_rationale": "The stop button, and it is a FILE because a file needs no signal, no pid, no terminal and no second process: `touch PAUSE` from any shell suspends the loop at the next tick, `rm PAUSE` resumes it. A paused session keeps ticking and keeps logging, so silence never means 'paused' — silence means something is wrong.",
+  "pause_file": "PAUSE",
+
+  "_order_follow_rationale": "PROPOSED, inherited from scripts/dry_run.py verbatim. How long a submitted order is followed before the cycle gives up on a terminal state. A limit order that does not fill is a fact about the market and not a failure; the chain is left in flight, says so in the log line, and the next cycle sees it as a risk-bearing position exactly as it should.",
+  "order_follow_seconds": 90,
+  "order_poll_seconds": 3
+}
