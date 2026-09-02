@@ -16,6 +16,24 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 12:20 UTC - teakeycee - OPEN
+
+- **Data layer LANDED**, GB-D armed: **102 passed, 1 skipped (live band), 2
+  xfailed.** The two xfails are `GB-D-F04` and `GB-D-11`, strict-xfail on the
+  **absence of `tests/fixtures/datafeed/clock_open.json`** — `/v2/clock` reports
+  one state at a moment and the market was closed when the fixtures were
+  recorded. They arm the instant the file is recorded, which happens at today's
+  open; nothing is derived from the closed clock and no assertion is relaxed.
+- **Also taking EXECUTOR lead for today**, alongside the data layer lead I took
+  at 11:35. **Both released back to Jhoosier at my CLOSE.** Reason: with the
+  data layer landed, the executor is the last piece between the ledger and a
+  real order, and I have the hours today to close it contract-first.
+- Next, in order: EVENT_FACTS refresh from Alpaca's official FAQ; the scored-run
+  expiry bound; the GB-E executor suite and module; then at the open, the clock
+  recording, the live dry run, and one real governed order on the DEV account.
+
+---
+
 ### 2026-09-02 11:35 UTC - teakeycee - OPEN
 - **Taking DATA LAYER lead for today, releasing it back at my CLOSE.** Reason:
   six spare hours; the data layer is the critical path to an end-to-end dry run
