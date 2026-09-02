@@ -16,6 +16,134 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 13:34 UTC - teakeycee - CLOSE
+
+- **Changed: the pipeline placed a real order.** Live SPY chain -> screener ->
+  governor -> ledger -> executor -> Alpaca -> ledger follow-ups, on the **DEV**
+  paper account, in **autopilot** mode with the governor as the sole gate. It
+  filled. Ten commits this session.
+  **The chain, folded by `root_id`:**
+  `20260902T133336Z-f5591959a5` `approved_pending` -> `+01-submitted` (broker
+  order `91657c8a-c2e8-4c44-9107-08a460e20960`) -> `+02-filled`, qty 1 at a net
+  **-1.45** against a -1.43 limit. **`replay_root` on the root behind that
+  position returns `matched=True`** — the verdict that produced a REAL position
+  re-derives from the entry's own embedded proposal, account state and clock.
+  Alongside it, one **terminal governor rejection**: computed max loss
+  **151,944.00** against a 62,500.00 cap, coverage short by 52,400.00, cash floor
+  breached to -51,944.00, and **`claim_divergence=151,694.00`** — the governor
+  rejected on its own arithmetic and read the strategist's 250.00 claim only to
+  write down how wrong it was.
+  **Two modules landed with their suites: GB-D (data layer) and GB-E (executor).**
+  `glassbox/datafeed.py` — 2b RAW only (no `reserved_*`, A2 b), no clock, no
+  hand-rolled calendar, injectable transport, paper guard at the loader AND at
+  every request. `glassbox/executor.py` — structure-tagged constructors where
+  **the naked case is a `TypeError`, not a validation message**, 4a/4b wire
+  mapping, `client_order_id` = prefix + ROOT id, and a duplicate resolved to the
+  existing order rather than a second position. **No new dependencies**;
+  `alpaca-py` was already pinned. `GB_INTERFACES.md` was **NOT** touched in any
+  of the ten commits.
+- **Tests: 132 passed, 1 skipped (the opt-in live band), 0 xfailed, 0 xpassed.**
+  All five suites fully armed: GB-S 17, GB-C 34, GB-L 27, GB-D 29, GB-E 23 (+2
+  probes). No assertion was changed to make any module pass; both new modules
+  were written to their suites and armed on the first run.
+- **LEADS RELEASED.** I took the **data layer** lead at 11:35 and the **executor**
+  lead at 12:20, both by declaration. **Both go back to Jhoosier with this
+  block.** Everything I did to the executor is contract-conformant to seam 4/4a/4b
+  and covered by GB-E; the **MCP transport is untouched and still yours**.
+- **DEV ACCOUNT IS NOT FLAT — deliberately, and per teakeycee's instruction.**
+  Surviving position: **short 1x `SPY260903P00762000`, long 1x
+  `SPY260903P00757000`** (a 762/757 put credit vertical, 5 wide, opened for 1.45).
+  Max loss 357.00, fully defined. **It expires tomorrow, 2026-09-03**, inside the
+  scored bound that selected it, and resolves itself at expiry with no action
+  needed. Cash 100,000.00 -> 100,144.95. Do not close it to tidy up: it is the
+  first governed position this system has ever taken and the ledger chain
+  documents it.
+- **EVENT_FACTS refreshed from Alpaca's official FAQ** (human export, read by me,
+  recorded `[primary]` ✅ verified 2026-09-02). **The binding scoring fact:
+  scoring reads TOTAL ACCOUNT EQUITY, not cash, at EOD Thursday 2026-09-03**,
+  with that day's exercises and assignments reflected. The FAQ also mentions a
+  Friday 09:30 snapshot; the two readings differ by one overnight and **we plan
+  to the conservative one**. A short premium position still open after the bound
+  is scored at its **mark**, not at the premium collected — so positions must
+  resolve on or before Sep 3 to convert premium into scored equity. That is now
+  `max_expiry_date = 2026-09-03`, **DECIDED** (not PROPOSED), in
+  `config/thresholds.governor.SCORED.json`, enforced by the governor's
+  `x_max_expiry` check and by clamping the data layer's fetch window to it.
+  Also recorded: the official window was **Mon Aug 31 09:30 ET -> Fri Sep 4 09:30
+  ET** and the agent was expected to start trading the competition account at the
+  Aug 31 open — **we are starting late**, which costs scored days but is not
+  disqualifying. **Judged on P&L plus creativity, autonomy, and robustness** — P&L
+  matters but not alone. **An SDK is allowed if the reasons are explained and
+  official SDKs are prioritized** -> `docs/EXECUTION_RATIONALE.md`. **Pre-event
+  work is permitted but must be disclosed in the README** -> done, in full.
+- **THE DASHBOARD IS NOW OPTIONAL, by primary source.** The FAQ says **no UI is
+  required** and hosting matters only if a demo app is submitted. Jay, this is the
+  thing I argued for last night on judgement and now do not have to: ranking the
+  dashboard behind the strategist and the video is supported by the rules, not by
+  my opinion. `SUBMISSION.md` items 9 and 10 should be reconsidered in that light
+  — that is your call, not mine.
+- **Frozen:** **`GB_INTERFACES.md` — both-humans rule, unchanged, and now four
+  landed modules depend on it.** **`max_expiry_date = 2026-09-03` is DECIDED and
+  frozen for the scored run** — it is a scoring-mechanics bound, not a trading
+  judgement, and moving it changes what gets fetched, screened and approved.
+  **Every other threshold in every config remains PROPOSED and uncalibrated.**
+  **Competition keys stay out of every `.env` until the deliberate first-trade
+  session.** The pinned 3a core `checks[]` vocabulary and the shape 5 status
+  vocabulary both remain closed to me: the new expiry rule rides `x_max_expiry`
+  precisely because the core list had no home for it.
+- **Blocked:** Nothing on my side.
+- **Seam amendments outstanding — all PROPOSED, none applied, one batch for one
+  conversation. Six carried forward, one new:** (1) `malformed_record` as a sixth
+  screener reason code; (2) refresh the stale shape-6 blockquote; (3) print the
+  governor's ledger-derived `ledger` block in 2b's composed view; (4)
+  `approved_pending` as a root status; (5) `corrects` as a nullable field on every
+  entry; (6) the composition of `snapshot` as `{account_state, clock}`. **NEW (7):
+  a screener reason code for a contract outside the scored expiry bound.** Today
+  the bound is enforced by clamping the fetch and by the governor, so no late
+  contract ever reaches the screener — but if one did, the screener would accept
+  it, because none of its five codes honestly says "expires too late" and
+  inventing a sixth unilaterally is the thing the both-humans rule exists to stop.
+- **Two debts I am naming rather than hiding.** (a)
+  `config/thresholds.governor.SCORED.json` duplicates every governor tunable
+  except the bound, because the GB-C reference config is frozen golden data —
+  putting Sep 3 in it would retroactively reject 18 hand-authored verdicts.
+  `GB-C-F07` asserts the two files agree on every shared key, so a drift is a test
+  failure rather than a discovery; **one calibrated config replacing both is a
+  both-humans decision** because it changes what the golden fixtures mean. (b) The
+  governor's **composed account view is still built in `scripts/dry_run.py`**;
+  A2(b) assigns it to the governor and it belongs in `glassbox/governor.py` with
+  GB-C criteria of its own. It is there because promoting it would add uncovered
+  code to an armed module.
+- **Attack next — Jhoosier, in this order.**
+  **FIRST, the MCP strategist path.** **Autonomy is explicitly judged** (FAQ), and
+  the scored run is **autopilot with the governor as the sole gate** — so the
+  thing that turns this from a governed pipeline into an *agent* is the strategist
+  proposing without a human choosing the strike. The seam it must produce is shape
+  2 and nothing else; `demo/ledger_sample.jsonl` shows exactly what a proposal
+  looks like on both sides of a verdict. **The governor is deterministic and has
+  no prompt** — `prompt_version` goes on the ledger entry, never on the verdict —
+  and `x_max_expiry` will reject anything expiring after Sep 3, so the strategist
+  should propose inside that bound rather than discover it.
+  **SECOND, the video.** It has a real hero moment now: a governor rejection with
+  `claim_divergence=151,694.00`, and a real filled position whose decision
+  replays.
+  **THIRD, the dashboard, ONLY if time remains** — it is optional per the FAQ.
+  `load()` -> `fold_chain()` per root -> `current_status()`; fold by `root_id`
+  never by adjacency, and `partial_fill` is not an end state. `demo/README.md`
+  spells it out.
+  **And still the highest-value thing you could write: adversarial proposals
+  against the governor.** Known gaps in my own coverage: a `claimed_max_loss`
+  *higher* than computed, mismatched-expiry or multi-underlying legs, and a credit
+  vertical priced wider than its own wings.
+- **The competition account is a SEPARATE, human-ordered session on my side
+  today.** Nothing in this session touched it and no competition key has been
+  loaded anywhere. Given the Aug 31 expected start and the Thursday-EOD equity
+  read, the first governed trade there wants to happen **today**, not Thursday —
+  I will run it deliberately, with keys loaded for that session only, and it will
+  go through this same pipeline in autopilot with the governor as the gate.
+
+---
+
 ### 2026-09-02 12:20 UTC - teakeycee - OPEN
 
 - **Data layer LANDED**, GB-D armed: **102 passed, 1 skipped (live band), 2
