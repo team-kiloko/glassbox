@@ -16,6 +16,150 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 15:30 UTC - teakeycee - MID-DAY (scored account is LIVE)
+
+- **THE COMPETITION ACCOUNT `PA3424LCNZBS` IS NOW LIVE-SCORED AND HOLDS TWO
+  GOVERNED POSITIONS.** Both placed this session through the harness, under the
+  governor, in **autopilot**, on teakeycee's explicit instruction. Both filled.
+  **Order 1, the proof — root `20260902T150903Z-973c931c1d`:**
+  `approved_pending` 15:09:03.098835 -> `+01-submitted` 15:09:03.105030 (broker
+  `27fc9153-3d2d-4abf-b940-290db8e1c732`) -> `+02-filled` 15:09:06.412587, **qty
+  1 at a net -0.90** against a -0.89 limit. `replay_root` **matched=True**.
+  **Order 2, the sized position — root `20260902T150958Z-fe8c507ed1`:**
+  `approved_pending` 15:09:58.268022 -> `+01-submitted` (broker
+  `fc3689f7-a65d-40ee-8ca4-225cdfb076a4`) -> `+02-filled` 15:10:01.515641, **qty
+  4 at a net -0.86**, on the limit. `replay_root` **matched=True**.
+  Both are the same structure: short `SPY260903P00763000` / long
+  `SPY260903P00758000`, a **763/758 put credit vertical, 5 wide**. The account
+  now holds **short 5x 763 / long 5x 758**, cash **100,433.75** from 100,000.00,
+  equity **99,983.75** marked, total computed max loss on the book **2,067.00**.
+  **Every leg expires 2026-09-03, BY CONSTRUCTION** — the fetch window is
+  clamped to `max_expiry_date` and `x_max_expiry` would refuse anything later,
+  so the positions resolve inside the scored window and convert premium into
+  scored equity rather than leaving mark-to-market residue in the number the
+  judges read. **No action is needed on them and none may be taken.**
+- **THE STANDING RULE ON THIS ACCOUNT IS ABSOLUTE, both pods, from now until the
+  Friday close.** **No manual orders. No flatten. No experiments. No ad-hoc
+  reads that could become writes.** Every order goes through
+  `scripts/dry_run.py` **with `--env .env.competition` typed explicitly**, which
+  is the only way to reach it: `--env` defaults to `.env` (dev) and
+  `config/profiles.json` is what maps an env file to an account. If you find
+  yourself about to touch this account any other way, stop and raise it.
+- **Order 2 was sized by ASKING THE GOVERNOR, not by computing a cap.** `--qty
+  auto` proposes one lot, reads the governor's OWN `max_loss_cap` detail
+  (`computed_max_loss=414.00 vs cap=2000.04`), takes a first guess at how many
+  fit, and steps down until approved. Every size in the search is a real verdict
+  on a real proposal. Computing it here instead would put the limit in two
+  places, and the day they disagree is the day an order goes out under a cap
+  nothing enforced.
+- **Changed — three commits.**
+  1. **`Executor: competition account identity guard` (`a3d0a1b`).** Two paper
+     accounts now exist and NOTHING in the code distinguishes them: same
+     endpoint, same SDK, same payloads, only the key pair differs. So the
+     executor asks the broker who it is, **over the connection that would carry
+     the order**, and refuses unless it is the account the run was authorised
+     for. `assert_account_identity()`, `Executor(expected_account_number=...)`
+     firing inside `submit()` before the payload is built,
+     `AlpacaPyTransport.get_account()`, and `AccountIdentityError` as a hard
+     stop. **GB-E-23..27** against a fake transport answering with a DIFFERENT
+     account — GB-E-23 asserts not just that it raised but that `submitted == []`
+     and the ledger is byte-identical. GB-E-26 refuses a transport that cannot
+     answer at all: "I could not check" must never resolve to "it is fine".
+     **`config/profiles.json`** names what each env file MEANS — account number,
+     ledger, demo sample, governor config, scored or not. **Both** accounts are
+     named, so a non-scored profile that somehow reaches the scored account is
+     refused rather than discovered afterwards.
+  2. **`Scored-run thresholds profile` (`0e53b8d`).**
+     **`config/thresholds.competition.json`**, DECIDED by teakeycee for this run:
+     `max_expiry_date` 2026-09-03, **`max_loss_cap` per structure = 2% of
+     equity**, **`x_total_open_risk` across the book = 10% of equity**. The file
+     states in its own text that 2%/10% are **his sizing decision**, not a
+     calibrated model, and that everything else stays PROPOSED and inherited
+     verbatim — **GB-C-F08 asserts exactly that**, key by key, so a run whose
+     thresholds were quietly tuned to fit its own trades is a test failure.
+     **`glassbox/governor.py` gained two things.** (a) **Caps may be a fraction
+     of equity** — `{"pct_of_equity": 0.02}` resolved against `equity` in the
+     composed view at decision time, with the resolved figure, its basis and the
+     equity it came from all in the detail. An unresolvable percentage **fails
+     closed**; a malformed one **raises**. Dollar caps emit no basis token, so
+     every detail string a dollar cap has ever produced is unchanged. (b)
+     **`x_total_open_risk`**, on the `x_` extension point 3a grants this pod: the
+     sum of the governor's OWN computed max loss over every ledger position
+     bearing risk, plus the proposal's, against a portfolio cap. **No `open_risk`
+     block means FAIL, not pass.** Covered calls contribute nothing and are
+     counted as `unpriced_positions` — 2e says they have no standalone figure and
+     inventing one for an aggregate is the sort of number the governor exists to
+     refuse. `computed_max_loss()` is now public so a composer uses THIS
+     arithmetic rather than a second copy of the formula.
+     **The harness** gained `--env` (defaulting to dev), the step-0 identity
+     guard, the liquidity window, `--qty auto`, and an exit-2 path that prints a
+     governed rejection's checks and writes nothing.
+     **`scripts/scrub_ledger.py`** rebuilds a demo sample from its ledger and
+     refuses to write unless the rebuild is byte-identical to the incremental
+     mirror, so the demo artefact is checked against its source rather than
+     trusted.
+  3. **`First scored-account governed orders; competition ledger sample`
+     (`9297e08`).** `demo/ledger_competition_sample.jsonl`, 8 entries, both
+     chains complete. **`account_number` is deliberately KEPT** — it is a
+     required submission disclosure and an identifier is not a credential — and
+     the recorder's credential scan ran clean over all 20,421 bytes. A separate
+     scan of all 72 tracked files for the four live credential values returned
+     **zero hits**.
+- **Tests: 143 passed, 1 skipped, 0 xfailed, 0 xpassed.** GB-S 17, GB-C 41,
+  GB-L 27, GB-D 29+1 skipped, GB-E 29. **No assertion was weakened and no
+  existing threshold was re-tuned.** The GB-C golden gained the new check across
+  all 19 cases plus a 20th, `total_open_risk_rejected`, where every per-trade
+  check passes and the trade is still refused. The GB-L golden entries were
+  regenerated **only after asserting** the diff was confined to the added check
+  and that no existing `(passed, detail)` pair moved.
+- **Frozen:** `config/thresholds.competition.json` and `config/profiles.json`
+  for the duration of the event — a threshold change mid-event retroactively
+  changes what the recorded verdicts mean. The two open positions are frozen:
+  they expire tomorrow and resolve themselves. `GB_INTERFACES.md` was **NOT**
+  touched in any of the three commits.
+- **Two PROPOSED amendments to 2b's composed view**, both carried here for
+  Jhoosier rather than written into the seam: **`equity`** (what a
+  percentage-of-equity cap resolves against; read from `/v2/account` through the
+  transport whose identity was just confirmed, because the data layer's 2b RAW
+  shape deliberately does not carry it and widening a signed shape for one
+  caller is a seam change made by not writing one down) and
+  **`ledger.open_risk`** (`total` / `counted_positions` / `unpriced_positions`,
+  the ledger-derived risk already on the book). Say if you want either done
+  differently and I will move it before we lock the submission.
+- **LEADS.** Governor, ledger, screener and their suites are mine per the seam's
+  lead table. **I took the EXECUTOR lead by declaration for the identity guard
+  only**, on teakeycee's explicit instruction, and **release it back to you with
+  this block.** The change is contract-conformant to 4/4a/4b, additive
+  (`expected_account_number=None` keeps the old path exactly, pinned by GB-E-27),
+  and the **MCP transport is untouched and still yours**.
+- **Blocked:** nothing. Two findings for you rather than blockers. **(1) A filled
+  chain is terminal, so it never enters `recent_activity` and `churn_guard`
+  cannot see it.** That is why order 2 was possible fifty-five seconds after
+  order 1, and it is the existing composition behaving as designed — I made
+  `open_risk` and `x_position_cap` count risk-bearing chains (which includes
+  `filled`) and deliberately left churn as it was rather than change a guard's
+  meaning mid-session. **A filled position is still an open one**, and the honest
+  fix belongs with the promotion of `compose_account_view` into the governor.
+  **(2) `data/ledger_dev.jsonl` carries a lingering `approved_pending` root**
+  from a no-submit rehearsal, which puts SPY at `max_open_per_underlying` on the
+  DEV profile — a third dev proposal on SPY will be refused on `x_position_cap`
+  and `churn_guard`. Real, correct, and worth knowing before you debug it. The
+  scored ledger has no such entry: every root on it reached a terminal state.
+- **Attack next (Jhoosier):**
+  1. **The Thursday runner loop** — autonomous cycles through the session rather
+     than one-shot runs: wake, screen, propose, govern, submit or record the
+     refusal, sleep, repeat, with the whole thing gated on `market_open` and the
+     scored config's caps. **Spec to follow from teakeycee.** The pieces are all
+     here now: `scripts/dry_run.py` is the cycle, `--env` selects the account,
+     `--qty auto` sizes by asking the governor, and `x_total_open_risk` is what
+     stops a loop from walking the book up one approved trade at a time.
+  2. **The MCP strategist path** — still entirely yours and untouched by any of
+     this. The proposal helper in the harness is a hand-authored stand-in and
+     says so in its own rationale text; a real strategist replaces it at the
+     shape 2 seam with no change to anything downstream, because the governor
+     recomputes everything it is handed and reads `claimed_max_loss` only to
+     record how wrong it was.
+
 ### 2026-09-02 13:34 UTC - teakeycee - CLOSE
 
 - **Changed: the pipeline placed a real order.** Live SPY chain -> screener ->
