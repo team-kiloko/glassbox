@@ -16,6 +16,33 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 06:10 UTC - Jhoosier - OPEN
+- **Changed:** Documentation only. (1) `docs/F2_wire_check.md`: F2 verified
+  against Alpaca's SDK reference and Level 3 guide. Sign convention matches
+  the wire (positive = debit, negative = credit); units are per-share, one
+  unit of spread, multiplier and qty applied downstream. Four amendments:
+  C1 reconciliation rule drops the qty factor; C2 legs carry `ratio_qty`,
+  `qty` moves to proposal level; C3 covered call / CSP are single-leg orders
+  (not mleg), wire limit is abs(net) with direction from `side`; C4 order
+  shape gains `position_intent`. (2) `docs/SIGNOFF_REVIEW_jhoosier.md`:
+  Jhoosier accepts F1(c), F3 `missing_ask`, A1 Option B, A2 (b), A3 hybrid,
+  A5 (a)+market_open, A7-A11 as proposed. B1: teakeycee's lead split
+  accepted as proposed; Telegram digest is OPTIONAL/stretch. B2: Streamlit.
+  B3: competition account CREATED 2026-09-02 by Jay on the bare team
+  address: **PA3424LCNZBS**, $100k, options Level 3. Keys in the vault
+  under a separate COMPETITION entry; NOT in any .env yet. Every box keeps
+  pointing at the dev account until GB-S + GB-C pass. No manual orders on
+  it, ever. SUBMISSION.md row 11 updated.
+  GB_INTERFACES.md and GB_INTERFACES.SIGNOFF-DRAFT.md untouched.
+- **Frozen:** `GB_INTERFACES.md` still the file of record until both sign.
+  tests/, fixtures, thresholds.PROPOSED.json untouched. Dev account flat.
+- **Blocked:** teakeycee's confirmation of C1-C4 and signature.
+- **Attack next:** teakeycee: read docs/F2_wire_check.md, confirm C1-C4,
+  sign the draft's change log. Then start the screener with `missing_ask`
+  per your own order of work; the data layer's snapshot fixture shape is
+  the one already in tests/fixtures. Jhoosier side starts the data layer as
+  soon as the swap is done.
+
 ### 2026-09-01 10:00 UTC - teakeycee - OPEN
 - Verification gate run on US box: a, b, c1, c2 all PASS. GATE GREEN.
   Phase 3 DONE-WHEN now closed on both sides.

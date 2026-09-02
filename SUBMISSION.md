@@ -15,9 +15,9 @@
 | 6 | Video presentation | Max 5 min, under 300MB | TODO | Hero moment: a governor REJECTION replayed in the dashboard. Verify limits at lablab.ai/ai-articles/hackathon-guidelines |
 | 7 | Slide presentation | PDF | TODO | |
 | 8 | Public GitHub repository | Public AT submission; MIT license | TODO | Flip only after secrets scan passes; LICENSE already in repo |
-| 9 | Demo application platform | Streamlit / Replit / Vercel | TODO | Jhoosier picks at seam sign-off |
-| 10 | Application URL | Live, judge-clickable | TODO | The audit dashboard |
-| 11 | Alpaca paper account ID | The fresh competition account, $100,000 start, options Level 3 enabled at creation | TODO | Created ~Sep 1 (Monday if suite passes). Reused accounts INELIGIBLE. ID goes here and in HANDOFF when created |
+| 9 | Demo application platform | Streamlit / Replit / Vercel | **Streamlit** | Decided 2026-09-02 by Jhoosier. Streamlit Community Cloud deploys from the public repo; account created |
+| 10 | Application URL | Live, judge-clickable | TODO | The audit dashboard on Streamlit Community Cloud. Needs the repo public (item 8) to deploy from it, so the URL lands on flip day; deploy from a private repo via Streamlit GitHub auth if we want it earlier |
+| 11 | Alpaca paper account ID | The fresh competition account, $100,000 start, options Level 3 enabled at creation | **PA3424LCNZBS** | Created 2026-09-02 by Jhoosier on the bare team address. Keys in the vault (COMPETITION entry, separate from dev). Governor-pipeline orders only; no manual orders ever |
 | 12 | One-page write-up | AI logic, risk gates, Alpaca infrastructure | TODO | The governor section writes itself from the contracts |
 
 Team decisions of record: social engagement track NOT pursued (no post links
