@@ -130,7 +130,7 @@ class RunContext:
     def __init__(self, *, profile, config, governor_thresholds,
                  screener_thresholds, datafeed_tunables, runner, config_version,
                  code_version, mode, submit, feed, transport, ledger,
-                 mirror=None, sleep=time.sleep):
+                 mirror=None, sleep=time.sleep, observer=None):
         self.profile = profile
         self.config = config
         self.governor_thresholds = governor_thresholds
@@ -146,6 +146,14 @@ class RunContext:
         self.ledger = ledger
         self.mirror = mirror
         self.sleep = sleep
+        #: Optional `funnel -> None` callable, for MEASUREMENT ONLY. It is
+        #: handed the cycle's raw materials — the contracts, the snapshots, the
+        #: screener's result, the candidates — after they exist and before
+        #: anything is governed. It cannot change a decision: nothing it returns
+        #: is read, it is called after the funnel and never inside it, and a
+        #: cycle with no observer executes exactly the same statements. See
+        #: `scripts/calibrate.py`, which is its only caller.
+        self.observer = observer
 
     def record(self, entry):
         """Mirror an entry into the committed demo sample, if there is one."""
@@ -274,6 +282,7 @@ def run_cycle(context, *, cycle_id, now):
         # nothing is written. The `as_of` above is still reported, so the log
         # line says WHEN it declined rather than only that it did.
         result["skipped"] = "market_closed"
+        _observe(context, result, clock=clock)
         return result
 
     # -- 2. the chain, clamped to the scored expiry bound -------------------
@@ -297,6 +306,7 @@ def run_cycle(context, *, cycle_id, now):
     symbols = [c["symbol"] for c in contracts["option_contracts"]]
     if not symbols:
         result["skipped"] = "empty_chain"
+        _observe(context, result, clock=clock, contracts=contracts)
         return result
     snapshots = context.feed.fetch_snapshots(
         symbols, as_of=as_of, feed=tunables["snapshot_feed"],
@@ -371,6 +381,9 @@ def run_cycle(context, *, cycle_id, now):
     )
     result["candidates"] = len(candidates)
     result["exclusions"] = report
+    _observe(context, result, clock=clock, contracts=contracts, snapshots=snapshots,
+             screened=screened, spot=spot, candidates=candidates, view=view,
+             as_of=as_of)
     if not candidates:
         result["skipped"] = "no_candidates"
         return result
@@ -402,6 +415,26 @@ def run_cycle(context, *, cycle_id, now):
 
     result["rejections"] = sorted(rejections)
     return result
+
+
+def _observe(context, result, **funnel):
+    """Hand this cycle's raw materials to the observer, if there is one.
+
+    MEASUREMENT ONLY, and the constraints matter more than the feature:
+
+    * it is called AFTER the step it reports and never inside one;
+    * whatever it returns is discarded;
+    * a cycle with `observer=None` executes exactly the same statements it did
+      before this existed.
+
+    It exists so a calibration run can measure the funnel — how stale the quotes
+    actually were, which liquidity rule excluded which contract — against the
+    REAL cycle rather than against a re-implementation of it. Measuring the
+    funnel with a second copy of the funnel measures the copy.
+    """
+    if context.observer is None:
+        return
+    context.observer(dict(funnel, result=result))
 
 
 def _order_id_of(entries, root_id):

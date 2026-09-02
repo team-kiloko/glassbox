@@ -998,3 +998,67 @@ def test_gb_r_16_a_cycle_that_proposes_nothing_says_which_test_excluded_everythi
         "skipped": "empty_chain", "exclusions": {},
     })
     assert "screen_rejects=none" in bare and "excluded=none" in bare
+
+
+@requires_runner
+def test_gb_r_17_the_observer_measures_and_cannot_steer(runner_chain, tmp_path,
+                                                        broker_responses):
+    """GB-R-17: the calibration hook sees the funnel and changes nothing.
+
+    A measurement hook on a code path that places orders is worth exactly one
+    criterion: that it is a measurement hook. It is handed the raw materials
+    after the funnel has produced them, its return value is discarded, and a
+    cycle run with one must reach the identical verdict, the identical root and
+    the identical order as a cycle run without one.
+    """
+    import run_cycle as R
+
+    seen = []
+    venue, broker = venue_for(runner_chain), broker_for(broker_responses)
+    watched = make_context(tmp_path / "watched", venue, broker)
+    watched.profile["ledger"].parent.mkdir(parents=True, exist_ok=True)
+    watched.observer = lambda funnel: seen.append(funnel) or "ignored"
+
+    plain_venue, plain_broker = venue_for(runner_chain), broker_for(broker_responses)
+    plain = make_context(tmp_path / "plain", plain_venue, plain_broker)
+    plain.profile["ledger"].parent.mkdir(parents=True, exist_ok=True)
+
+    watched_result = R.run_cycle(watched, cycle_id="0001", now=OPEN_AT)
+    plain_result = R.run_cycle(plain, cycle_id="0001", now=OPEN_AT)
+
+    # Same decision, same root id, same order — the hook is not in the path.
+    assert watched_result["approved"] == plain_result["approved"] == 1
+    assert [r["id"] for r in watched_result["roots"]] == \
+        [r["id"] for r in plain_result["roots"]]
+    # Everything about the two ledgers agrees except the wall-clock `ts` on the
+    # follow-ups, which is when the broker was polled and differs between any
+    # two runs, hook or no hook.
+    def comparable(entries):
+        return [{k: v for k, v in entry.items() if k != "ts"} for entry in entries]
+
+    assert comparable(watched.ledger.read_entries()) == \
+        comparable(plain.ledger.read_entries())
+    assert len(broker.submitted) == len(plain_broker.submitted) == 1
+    assert broker.submitted[0] == plain_broker.submitted[0], (
+        "byte-identical payloads: the hook is not in the path to the wire"
+    )
+
+    # And it was handed the funnel: the contracts, the snapshots, the screener's
+    # own result and the candidates, not a summary of them.
+    assert len(seen) == 1
+    funnel = seen[0]
+    assert {"contracts", "snapshots", "screened", "candidates", "spot", "view",
+            "as_of", "clock", "result"} <= set(funnel)
+    assert len(funnel["contracts"]["option_contracts"]) == 7
+    assert funnel["screened"]["accepted"] and "rejected" in funnel["screened"]
+    assert funnel["candidates"][0]["legs"][0]["symbol"] == SHORT_LEG
+
+    # A closed market is observed too, or a calibration run learns nothing from
+    # the cycles that declined.
+    closed = make_context(tmp_path / "closed", venue_for(runner_chain, is_open=False),
+                          broker_for(broker_responses))
+    closed_seen = []
+    closed.observer = closed_seen.append
+    R.run_cycle(closed, cycle_id="0001", now=OPEN_AT)
+    assert len(closed_seen) == 1
+    assert closed_seen[0]["result"]["skipped"] == "market_closed"
