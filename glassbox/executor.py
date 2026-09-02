@@ -46,8 +46,20 @@ second position and refusing to retry leaves an unknown one. Because the id is
 derived from the entry, the retry is safe: the broker refuses the duplicate and
 :meth:`Executor.submit` resolves it to the order that already exists.
 
+**The account identity guard (2026-09-02, scored run).** Two paper accounts now
+exist: the shared DEV account both pods experiment on, and the SCORED
+competition account whose closing equity is the judged number. They differ only
+by which key pair is loaded, which is a difference no code can see and no
+reviewer can spot in a diff. :func:`assert_account_identity` closes that: it
+reads the broker's own ``/v2/account`` over the very connection that would
+submit the order and refuses unless the account number is the one this run was
+told to trade. Construct an :class:`Executor` with `expected_account_number` and
+the guard fires again inside :meth:`submit`, before the payload is built and
+before the transport is touched — a guard that runs only in the harness is a
+guard a future caller can forget.
+
 Transport is injectable, and the two implementations satisfy the same
-two-method interface so the suite and the real run take the same code path:
+three-method interface so the suite and the real run take the same code path:
 ``FakeTransport`` in GB-E, :class:`AlpacaPyTransport` — a thin wrapper over
 Alpaca's official ``alpaca-py`` ``TradingClient`` — in production. Why an SDK
 rather than MCP on this particular path is written up in
@@ -62,7 +74,8 @@ from glassbox.datafeed import assert_paper
 from glassbox.ledger import client_order_id as build_client_order_id
 
 __all__ = [
-    "Executor", "ExecutorError", "DuplicateOrder", "AlpacaPyTransport",
+    "Executor", "ExecutorError", "DuplicateOrder", "AccountIdentityError",
+    "AlpacaPyTransport", "assert_account_identity",
     "covered_call", "cash_secured_put", "vertical_spread",
     "STRUCTURE_BUILDERS", "POSITION_INTENTS", "BROKER_STATUS_MAP",
 ]
@@ -107,6 +120,83 @@ class DuplicateOrder(ExecutorError):
             f"an order already exists under client_order_id {client_order_id!r}"
         )
         self.client_order_id = client_order_id
+
+
+class AccountIdentityError(ExecutorError):
+    """The broker on the other end is not the account this run was told to trade.
+
+    A hard stop, never a verdict and never a warning. Every other refusal in
+    this module is about whether an order is *sound*; this one is about whether
+    it would land on the right account, and there is no sound order to place on
+    the wrong one.
+    """
+
+
+# ---------------------------------------------------------------------------
+# The account identity guard
+# ---------------------------------------------------------------------------
+
+def assert_account_identity(account, *, expected_account_number, trading_base_url):
+    """Refuse unless this connection is the account we were told to trade.
+
+    Two paper accounts are live in this project and the ONLY thing separating
+    them is which key pair the process loaded. An order aimed at the dev account
+    that lands on the scored one — or the reverse — cannot be undone, is not
+    visible in any diff, and would be discovered by reading the judges' equity
+    number. So the check is made against the broker's own answer to
+    ``/v2/account``, over the same connection that would carry the order, rather
+    than against anything this process believes about itself.
+
+    Args:
+        account: the parsed ``/v2/account`` body.
+        expected_account_number: the account number this run is authorised for.
+            **Required, and no default**: a guard with a default is a guard that
+            passes when the caller forgets to configure it.
+        trading_base_url: re-checked for "paper" here, so identity and
+            paper-only fail together at the same edge (CLAUDE.md).
+
+    Returns:
+        The identity block worth recording alongside a decision — the account
+        number, the endpoint, and the broker's own status for the account.
+
+    Raises:
+        AccountIdentityError: on any mismatch, any missing number, and on a
+            caller that did not say which account it expected.
+    """
+    assert_paper(trading_base_url)
+
+    if not expected_account_number:
+        raise AccountIdentityError(
+            "no expected account number was configured for this run. The guard "
+            "does not have a default and will not pass an unnamed account: name "
+            "the account in config/profiles.json for the env file being used"
+        )
+    if not isinstance(account, dict):
+        raise AccountIdentityError(
+            f"/v2/account did not return a body ({type(account).__name__}); the "
+            f"identity of this connection is unknown, so nothing may be sent over it"
+        )
+
+    actual = account.get("account_number")
+    if not isinstance(actual, str) or not actual:
+        raise AccountIdentityError(
+            "/v2/account returned no account_number. An account that will not "
+            "say who it is cannot be confirmed as the right one; failing closed"
+        )
+    if actual != expected_account_number:
+        raise AccountIdentityError(
+            f"ACCOUNT MISMATCH — refusing to go any further. This run is "
+            f"authorised for account {expected_account_number!r} and the keys "
+            f"loaded reach account {actual!r} at {trading_base_url!r}. Nothing "
+            f"has been sent. Check which env file was selected with --env; do "
+            f"NOT edit this check"
+        )
+
+    return {
+        "account_number": actual,
+        "trading_base_url": trading_base_url,
+        "broker_status": account.get("status"),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -244,19 +334,53 @@ class Executor:
     Args:
         ledger: a :class:`glassbox.ledger.Ledger`. Follow-ups are appended to it;
             nothing is ever mutated.
-        transport: anything exposing ``submit_order(payload)`` and
-            ``get_order_by_client_id(client_order_id)``.
+        transport: anything exposing ``submit_order(payload)``,
+            ``get_order_by_client_id(client_order_id)`` and — when an account is
+            named below — ``get_account()``.
         config: the mapping :func:`glassbox.datafeed.load_config` returns. The
             paper guard reads its trading base URL.
         env: environment mapping the order-id prefix is read from. Defaults to
             the real environment.
+        expected_account_number: the account this executor is authorised for.
+            When set, :meth:`submit` reads the broker's own ``/v2/account`` and
+            refuses unless it matches, BEFORE the payload is built and before
+            the transport is asked to send anything. ``None`` keeps the pre-2026-09-02
+            behaviour for callers that have not named an account — the harness
+            names one for every run, dev included.
     """
 
-    def __init__(self, ledger, transport, config, env=None):
+    def __init__(self, ledger, transport, config, env=None,
+                 expected_account_number=None):
         self.ledger = ledger
         self.transport = transport
         self.config = config
         self.env = env
+        self.expected_account_number = expected_account_number
+        #: The identity block from the last successful guard, for the caller to
+        #: record. Never cached as a pass: the guard re-reads every submission.
+        self.identity = None
+
+    # -- the guard ---------------------------------------------------------
+
+    def assert_account_identity(self):
+        """Read ``/v2/account`` and refuse unless it is the expected account.
+
+        Called by :meth:`submit` when an account was named, and callable on its
+        own as a pre-flight — the harness runs it before the screener, so a
+        mis-selected env file costs one request rather than a position.
+        """
+        if not hasattr(self.transport, "get_account"):
+            raise AccountIdentityError(
+                f"this run names account {self.expected_account_number!r} but its "
+                f"transport cannot read /v2/account, so identity cannot be "
+                f"confirmed. Failing closed rather than assuming"
+            )
+        self.identity = assert_account_identity(
+            self.transport.get_account(),
+            expected_account_number=self.expected_account_number,
+            trading_base_url=self.config.get("trading_base_url"),
+        )
+        return self.identity
 
     # -- building ----------------------------------------------------------
 
@@ -310,8 +434,9 @@ class Executor:
 
         Returns ``{"order", "entry", "resolved_existing", "broker"}``.
 
-        Two refusals happen BEFORE the transport is touched at all: an unapproved
-        verdict, and a trading base URL that is not paper. A guard that fires
+        Three refusals happen BEFORE anything is sent: an unapproved verdict, a
+        trading base URL that is not paper, and — when this executor names an
+        account — a broker on the other end that is not it. A guard that fires
         after the request has left is not a guard.
         """
         verdict = root_entry.get("verdict") or {}
@@ -328,6 +453,11 @@ class Executor:
         # Raises before anything capable of reaching a venue is called, and
         # before the prefix is even read, so the order of failures is stable.
         assert_paper(self.config.get("trading_base_url"))
+
+        # The identity read is a GET on /v2/account. It is the only request this
+        # method makes before it is satisfied it is talking to the right account.
+        if self.expected_account_number is not None:
+            self.assert_account_identity()
 
         payload = self.build_order_request(
             root_entry, covering_shares=covering_shares, securing_cash=securing_cash
@@ -450,7 +580,7 @@ def _fill_of(broker_order):
 # ---------------------------------------------------------------------------
 
 class AlpacaPyTransport:
-    """The two-method transport interface, over ``alpaca-py``'s ``TradingClient``.
+    """The three-method transport interface, over ``alpaca-py``'s ``TradingClient``.
 
     Deliberately thin. Everything interesting — the structure-tagged builders,
     the 4a/4b mapping, the id scheme, the ledger chain — happens above this
@@ -474,6 +604,15 @@ class AlpacaPyTransport:
             secret_key=config["secret_key"],
             paper=True,          # the guard above has already refused anything else
         )
+
+    def get_account(self):
+        """``/v2/account``, for the identity guard.
+
+        On the SAME client that would submit the order. Reading identity over a
+        second connection would confirm something about a connection that is not
+        the one carrying the trade.
+        """
+        return _as_dict(self.client.get_account())
 
     def submit_order(self, payload):
         from alpaca.common.exceptions import APIError

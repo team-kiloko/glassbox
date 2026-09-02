@@ -1,0 +1,28 @@
+{
+  "_status": "RUN PROFILES. Which env file selects which account, which ledger, and which governor config. DECIDED 2026-09-02 by teakeycee when the scored competition account went live.",
+
+  "_note": "Two paper accounts now exist and NOTHING in the code distinguishes them: same endpoint, same SDK, same payloads. The only difference is which key pair the process loaded, which no diff shows and no reviewer can catch. This file is the one place that says what each env file MEANS, so a run cannot silently write the scored account's orders into the dev ledger, govern them under the dev config, or place them at all without the executor first confirming the account number with the broker. The harness selects a profile with `--env` and DEFAULTS TO `.env` (dev): reaching the scored account must always be something a human typed.",
+
+  "_account_numbers_are_not_secrets": "An Alpaca account number identifies an account; it does not authorise anything. The competition number is a REQUIRED DISCLOSURE for the submission (EVENT_FACTS.md), and the dev number is here so that a non-scored profile that somehow reaches the scored account is refused rather than discovered afterwards. Credentials stay in .env, mode 600, gitignored, and appear in no tracked file.",
+
+  "profiles": {
+    ".env": {
+      "name": "dev",
+      "scored": false,
+      "account_number": "PA34K04ZYHYO",
+      "ledger": "data/ledger_dev.jsonl",
+      "demo_sample": "demo/ledger_sample.jsonl",
+      "governor_thresholds": "config/thresholds.governor.SCORED.json",
+      "_note": "The SHARED dev paper account, both pods. Not scored. It carries the first governed position this system ever took (a 762/757 SPY put vertical opened 2026-09-02, expiring 2026-09-03); see HANDOFF.md."
+    },
+    ".env.competition": {
+      "name": "competition",
+      "scored": true,
+      "account_number": "PA3424LCNZBS",
+      "ledger": "data/ledger_competition.jsonl",
+      "demo_sample": "demo/ledger_competition_sample.jsonl",
+      "governor_thresholds": "config/thresholds.competition.json",
+      "_note": "THE SCORED ACCOUNT. Its total equity at EOD 2026-09-03 is the judged number. LIVE-SCORED from 2026-09-02: no manual orders, no flatten, no experiments — every order goes through the harness with --env .env.competition explicitly, under the governor, in autopilot."
+    }
+  }
+}

@@ -633,3 +633,177 @@ def test_gb_e_22_sdk_models_normalise_to_primitives(approved_roots):
     # A plain dict passes through untouched, which is what keeps the fake and
     # the real transport on the same code path.
     assert EXECUTOR._as_dict({"status": "filled"}) == {"status": "filled"}
+
+
+# ---------------------------------------------------------------------------
+# GB-E-23..26 — the account identity guard
+#
+# Added 2026-09-02, the morning the SCORED competition account went live. From
+# that moment two paper accounts exist — the shared dev account both pods
+# experiment on, and the scored one whose closing equity is the judged number —
+# and NOTHING in the code distinguishes them. Same endpoint, same SDK, same
+# payload; only the key pair loaded from the selected env file differs. That is
+# a difference no diff shows and no reviewer can catch, and an order that lands
+# on the wrong one cannot be taken back.
+#
+# So the executor asks the broker who it is talking to, over the connection that
+# would carry the order, and refuses unless the answer is the account this run
+# was authorised for. These tests are that refusal, made against a transport
+# that answers with a DIFFERENT account — the failure mode the guard exists for,
+# which cannot be reproduced against a real broker without risking the thing the
+# guard protects.
+# ---------------------------------------------------------------------------
+
+SCORED_ACCOUNT = "PA0000TESTONLY"
+OTHER_ACCOUNT = "PA9999NOTOURS"
+
+
+class AccountTransport(FakeTransport):
+    """A `FakeTransport` that also answers `/v2/account`, as the real one does.
+
+    The account body is whatever the test says it is. That is the point: the
+    only way to exercise "the keys reached the wrong account" is to have a
+    broker that claims to be the wrong account.
+    """
+
+    def __init__(self, responses, account, status="accepted"):
+        super().__init__(responses, status=status)
+        self.account = account
+        self.account_reads = 0
+
+    def get_account(self):
+        self.account_reads += 1
+        return self.account
+
+
+def account_body(number, status="ACTIVE"):
+    return {"id": "b0000000-0000-4000-8000-000000000000",
+            "account_number": number, "status": status,
+            "cash": "100000.00", "equity": "100000.00",
+            "buying_power": "100000.00"}
+
+
+@requires_executor
+def test_gb_e_23_a_different_account_aborts_and_sends_nothing(approved_roots, env,
+                                                              ledger, broker_responses):
+    """GB-E-23: the broker answers with another account — nothing may be sent.
+
+    The single most important test in this band. `submit` must refuse on the
+    identity read alone, before the payload is built and before `submit_order`
+    is reached, and the ledger must be exactly as it was.
+    """
+    transport = AccountTransport(broker_responses, account_body(OTHER_ACCOUNT))
+    executor = EXECUTOR.Executor(
+        ledger=ledger, transport=transport, config=PAPER_CONFIG, env=env,
+        expected_account_number=SCORED_ACCOUNT,
+    )
+    root = approved_roots["vertical_spread"]
+    before = ledger.read_entries()
+
+    with pytest.raises(EXECUTOR.AccountIdentityError) as excinfo:
+        executor.submit(root, ts=TS)
+
+    message = str(excinfo.value)
+    assert SCORED_ACCOUNT in message and OTHER_ACCOUNT in message, (
+        "the abort names both accounts, or the operator cannot tell which env "
+        "file they actually loaded"
+    )
+    assert transport.account_reads == 1, "identity is read from the broker, once"
+    assert transport.submitted == [], (
+        "NOTHING may reach the wire on an account mismatch — 'it raised' is a "
+        "weaker claim than 'it raised and nothing was sent'"
+    )
+    assert ledger.read_entries() == before, "no follow-up was appended"
+    assert executor.identity is None, "a failed guard records no identity"
+
+
+@requires_executor
+def test_gb_e_24_the_expected_account_passes_and_is_recorded(approved_roots, env,
+                                                             ledger, broker_responses):
+    """GB-E-24: the right account submits normally, and the guard says who it was."""
+    transport = AccountTransport(broker_responses, account_body(SCORED_ACCOUNT))
+    executor = EXECUTOR.Executor(
+        ledger=ledger, transport=transport, config=PAPER_CONFIG, env=env,
+        expected_account_number=SCORED_ACCOUNT,
+    )
+    root = approved_roots["vertical_spread"]
+
+    result = executor.submit(root, ts=TS)
+    assert result["entry"]["status"] == "submitted"
+    assert len(transport.submitted) == 1
+    assert executor.identity["account_number"] == SCORED_ACCOUNT
+    assert "paper" in executor.identity["trading_base_url"]
+    assert executor.identity["broker_status"] == "ACTIVE"
+
+
+@requires_executor
+def test_gb_e_25_the_guard_fails_closed_on_anything_it_cannot_confirm(broker_responses):
+    """GB-E-25: every unconfirmable case is a refusal, not a pass.
+
+    A guard with a default, a guard that shrugs at a missing field, or a guard
+    that runs after the paper check are all guards that pass on the day they
+    matter.
+    """
+    guard = EXECUTOR.assert_account_identity
+    paper = PAPER_CONFIG["trading_base_url"]
+
+    # No expected account configured at all: refuses rather than waving through.
+    with pytest.raises(EXECUTOR.AccountIdentityError):
+        guard(account_body(SCORED_ACCOUNT), expected_account_number=None,
+              trading_base_url=paper)
+
+    # The broker will not say who it is.
+    for body in ({}, {"account_number": ""}, {"account_number": None}):
+        with pytest.raises(EXECUTOR.AccountIdentityError):
+            guard(body, expected_account_number=SCORED_ACCOUNT, trading_base_url=paper)
+
+    # Not a body at all.
+    with pytest.raises(EXECUTOR.AccountIdentityError):
+        guard(None, expected_account_number=SCORED_ACCOUNT, trading_base_url=paper)
+
+    # Paper is checked at the same edge: a live URL never reaches the id compare.
+    with pytest.raises(Exception) as excinfo:
+        guard(account_body(SCORED_ACCOUNT), expected_account_number=SCORED_ACCOUNT,
+              trading_base_url=LIVE_CONFIG["trading_base_url"])
+    assert "paper" in str(excinfo.value)
+
+    # And the happy path returns the block worth recording.
+    identity = guard(account_body(SCORED_ACCOUNT),
+                     expected_account_number=SCORED_ACCOUNT, trading_base_url=paper)
+    assert identity == {"account_number": SCORED_ACCOUNT, "trading_base_url": paper,
+                        "broker_status": "ACTIVE"}
+
+
+@requires_executor
+def test_gb_e_26_a_transport_that_cannot_be_identified_is_refused(approved_roots, env,
+                                                                  ledger):
+    """GB-E-26: naming an account and being unable to check it is a hard stop.
+
+    A transport with no `get_account` cannot answer the question, and "I could
+    not check" must never resolve to "it is fine". `RefusingTransport` also
+    fails the test outright if the executor reaches the wire anyway.
+    """
+    transport = RefusingTransport()
+    executor = EXECUTOR.Executor(
+        ledger=ledger, transport=transport, config=PAPER_CONFIG, env=env,
+        expected_account_number=SCORED_ACCOUNT,
+    )
+    with pytest.raises(EXECUTOR.AccountIdentityError):
+        executor.submit(approved_roots["vertical_spread"], ts=TS)
+    assert transport.submitted == []
+
+
+@requires_executor
+def test_gb_e_27_an_unnamed_account_keeps_the_pre_guard_behaviour(approved_roots, env,
+                                                                  ledger, broker_responses):
+    """GB-E-27: `expected_account_number=None` reads no account and submits.
+
+    The guard is opt-in at the API and mandatory at the harness. This pins that
+    an executor that names no account makes no identity request at all, so the
+    twenty-two tests above this band still describe the same code path.
+    """
+    transport = AccountTransport(broker_responses, account_body(OTHER_ACCOUNT))
+    executor = make_executor(ledger, transport, env)
+    executor.submit(approved_roots["vertical_spread"], ts=TS)
+    assert transport.account_reads == 0
+    assert len(transport.submitted) == 1
