@@ -16,6 +16,111 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 10:55 UTC - teakeycee - CLOSE (freeze day)
+- **Changed:** **Both of my modules are landed with their suites armed and green:
+  48 passed, 0 xfailed, 0 xpassed — GB-S 17 (4 fixture-integrity + 13 behaviour),
+  GB-C 31 (6 fixture-integrity + 25 behaviour from 21 criteria).** No test was
+  changed to make either module pass; both were written to their suite, and both
+  strict-xfail bands deactivated on their own. Four commits this session — the
+  two screener commits are in my 10:30 block; the two new ones are:
+  (1) `GB-C governor contract suite + golden fixtures` — `tests/fixtures/governor/`
+  with `thresholds.governor.PROPOSED.json` (per-structure `max_loss_cap`,
+  `cash_floor_pct`, churn window + min hold, position caps, net tolerance — every
+  number PROPOSED and uncalibrated, `covered_call`'s cap deliberately `null`),
+  **10 proposals** per shape 2 covering every structure in the closed enum plus
+  the defects, **12 account states** per shape 2b with `raw_` (data layer, A2 b)
+  and `composed_` (governor's view) kept strictly apart, **open and closed
+  `/v2/clock` fixtures** for 6c, and **18 golden cases, 4 approve / 14 reject**,
+  each stating every check in the pinned 3a vocabulary plus the expected computed
+  max loss. `tests/test_governor_contract.py` names criteria **GB-C-F01..F06 and
+  GB-C-01..21**; conftest's module probe is generalised over both suites and the
+  OCC regex moved there so the two suites read one definition.
+  (2) `Governor lands, GB-C armed and green` — **`glassbox/governor.py`**,
+  `govern(proposal, account_state, clock_or_as_of, thresholds, mode,
+  config_version) -> verdict`. Pure: no clock (`as_of` comes from the clock it is
+  handed), no randomness, no file I/O, no defaults — a missing threshold key
+  raises. **No new dependencies.**
+  What it enforces, and the fixtures that hold it to it: **max loss is computed
+  from strikes / `ratio_qty` / `qty` / net price per structure, and
+  `claimed_max_loss` is read ONLY to record the divergence** — the false-claim
+  case claims 200 against a computed **819** and a 500 cap, and is rejected on the
+  computed figure with `claim_divergence=619.00` in the detail. **`structure_valid`
+  tests the declared structure against actual leg composition**, so a lone short
+  call labelled `vertical_spread` fails — that is the half of 2e that lives in the
+  governor. **`net_reconciles` is the C1 per-share sum with `qty` deliberately
+  absent**, and it names the qty-factor mistake in the detail when it sees one.
+  **`structure_valid` and `net_reconciles` are gates:** if either fails the risk
+  band is recorded failed and `not evaluated`, because risk math on numbers just
+  declared untrustworthy is worse than no number — while `churn_guard`,
+  `market_open` and `x_position_cap` still run, so the verdict stays a full audit
+  record rather than an early exit. **Coverage is measured against UNRESERVED
+  collateral**, verticals against the computed max loss. **Every check carries its
+  numbers in the seam's `key=value` detail convention, including checks that
+  passed.** Position caps ride `x_position_cap` per the 3a hybrid — no new core
+  vocabulary invented. **`GB_INTERFACES.md` was NOT touched in any of the four
+  commits.** No orders; dev account untouched and flat.
+- **Next on my side:** the **provenance ledger writer** per seam 5a — root entry
+  written pre-submission with `order: null` / `fill: null` so `client_order_id`
+  can embed its `id`, follow-ups appended on `root_id`, nothing ever mutated.
+  That is the block after this one.
+- **Frozen:** **`GB_INTERFACES.md` — both-humans rule, unchanged, and it is freeze
+  day, so the bar is higher not lower.** Both threshold files are **PROPOSED and
+  uncalibrated** — `thresholds.PROPOSED.json` (screener) and
+  `thresholds.governor.PROPOSED.json` (governor). Every governor number was chosen
+  so a fixture sits unambiguously on one side of it; **none of them is a trading
+  judgement** and the real config must supersede both before anything trades. The
+  pinned 3a core `checks[]` vocabulary is closed to me: `x_` is the only extension
+  I may add without you.
+- **Seam amendments proposed, batched for both humans — NOT applied:**
+  1. **Add `malformed_record` as a sixth screener reason code (shape 6).** Today a
+     schema violation in a contract record — no symbol, unparseable strike, a
+     `type` that is neither call nor put — **raises**. That is fail-closed for the
+     run, and deliberate: none of the five codes would honestly describe a broken
+     record. But a raise leaves **no ledger entry**, so a malformed record is
+     invisible to the audit trail, which is the one thing this system is claiming
+     to have. A sixth code turns it into a rejection we can count.
+  2. **Refresh the stale shape-6 blockquote.** It still says the `missing_ask`
+     counter-fixture is "not yet in the fixtures" and that "the seam is the
+     authority" pending it. The fixtures caught up at 10:30 today; the note
+     describes a gap that is closed.
+  3. **(Smaller, mine this session — flagging it rather than letting you find it.)**
+     My `composed_` account fixtures carry a **`ledger` block**
+     (`open_positions`, `recent_activity{last_open_at, position_opened_at}`) that
+     2b's composed view does not print. Same provenance as
+     `reserved_cash`/`reserved_shares` under A2 (b) — **governor-derived from the
+     ledger, never from the data layer** — and `churn_guard` and `x_position_cap`
+     cannot be computed without it, since the entry point takes no ledger argument.
+     **It does not cross the seam, so it is not a change to anything you build**,
+     but 2b prints the composed view, so printing it there is yours to agree to.
+     Also mine and also PROPOSED: the **`cash_floor` arithmetic** and the two
+     **`churn_guard` inputs**, which 3a names but does not define. Both are written
+     up in `tests/fixtures/governor/README.md` for you to attack.
+- **Blocked:** Nothing on my side.
+- **Attack next:** **Jhoosier** — (1) **data layer** against the signed seam:
+  shape 6 inputs (contracts with the `expiration_date_gte/lte` filter, snapshots
+  at `feed=indicative`) and **shape 2b RAW broker state** — raw only, no
+  `reserved_cash` / `reserved_shares`; the governor now **raises** if handed a raw
+  state where its composed view belongs, which is GB-C-21, so the two halves of
+  A2 (b) are enforced from both ends. `clock()` and `calendar()` pass-throughs
+  feed `market_open` directly. (2) **Executor constructors per 4a/4b:** single-leg
+  `covered_call` / `cash_secured_put` are **not `mleg`**, wire `limit_price =
+  abs(net_debit_credit)` with direction from `side`, **never a negative limit on a
+  single-leg order**; `position_intent` on every leg, opening-only for this event;
+  `client_order_id = <ORDER_ID_PREFIX from your .env><ledger-entry-id>`, prefix
+  never hardcoded. (3) **Attack the governor with adversarial proposals — this is
+  the highest-value thing either of us can do today and it is squarely your lane,**
+  because you own the strategist and the strategist is what the governor exists to
+  distrust. Both suites are armed, so a proposal that should be refused and is not
+  is a red test rather than an argument. Where I would aim: a proposal whose legs
+  reconcile but whose `structure` is a lie in a way my six structure fixtures do
+  not cover; ratio spreads that are 1:1 by GCD but not by risk; a credit vertical
+  priced at a credit wider than its own wings; multi-underlying or mismatched-expiry
+  legs; and anything where `claimed_max_loss` is *higher* than the computed figure
+  rather than lower, which none of my fixtures test. Screener side, the two I still
+  want hit are **pagination** and **any partial-greeks reality**.
+
+---
+
 ### 2026-09-02 10:30 UTC - teakeycee - CLOSE
 - **Changed:** **The chain screener has landed and the GB-S suite is ARMED and
   GREEN: 17 passed, 0 xfailed, 0 xpassed.** No test was changed to make it pass;
