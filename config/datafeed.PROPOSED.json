@@ -1,0 +1,21 @@
+{
+  "_status": "PROPOSED — NOT calibrated, NOT signed off.",
+  "_note": "Per CLAUDE.md thresholds and tunables live in config, never hardcoded. These are data-layer and dry-run tunables: which underlying we screen, the DTE band we ask the contracts endpoint for, the snapshot feed, and page sizes. None of them is a trading judgement — the DTE band was chosen so a SPY monthly expiry falls inside it, not because 21-45 days is the right place to sell premium. The CALLER loads this file and passes the mapping in (same discipline as GB_INTERFACES.md 6a); no module holds a copy.",
+
+  "underlying": "SPY",
+
+  "dte_min_days": 21,
+  "dte_max_days": 45,
+
+  "snapshot_feed": "indicative",
+
+  "page_limit": 100,
+
+  "_fixture_note": "Recording-only. scripts/record_fixtures.py narrows to a strike band and one option type so that the recorded pagination sample is a COMPLETE run — page 2 terminates — while still spanning every expiry in the DTE band, which is what makes the nearest-expiry-first ordering visible across the page boundary. These never reach a live run.",
+  "fixture_page_limit": 6,
+  "fixture_type": "call",
+  "fixture_strike_gte": 500,
+  "fixture_strike_lte": 505,
+
+  "calendar_lookback_days": 10
+}

@@ -1,10 +1,11 @@
 """Shared loading and helpers for the GlassBox contract suites.
 
-Two suites live here, built to the same pattern:
+Four suites live here, built to the same pattern:
 
-  GB-S  chain screener   — GB_INTERFACES.md shape 6
-  GB-C  governor         — GB_INTERFACES.md shape 3 (+ 2, 2b, 3a)
+  GB-S  chain screener    — GB_INTERFACES.md shape 6
+  GB-C  governor          — GB_INTERFACES.md shape 3 (+ 2, 2b, 3a)
   GB-L  provenance ledger — GB_INTERFACES.md shape 5 (+ 5a, and 4's id scheme)
+  GB-D  data layer        — GB_INTERFACES.md shape 2b RAW, 6, 6c
 
 Each suite has a fixture-integrity band that runs today and guards the golden
 data, and a behaviour band that is strict-xfail until its module lands and then
@@ -422,3 +423,224 @@ def chain_of(entries, root_id):
     the golden file interleaves chains.
     """
     return [e for e in entries if (e["root_id"] or e["id"]) == root_id]
+
+
+# ---------------------------------------------------------------------------
+# GB-D — data layer
+# ---------------------------------------------------------------------------
+
+DF_FIXTURES = FIXTURES / "datafeed"
+
+_DATAFEED_CANDIDATES = ("glassbox.datafeed", "datafeed")
+
+DATAFEED, DATAFEED_MISSING_REASON = _import_module(_DATAFEED_CANDIDATES, "DataFeed")
+DATAFEED_MISSING = DATAFEED is None
+
+requires_datafeed = pytest.mark.xfail(
+    DATAFEED_MISSING,
+    reason=f"data layer has not landed yet: {DATAFEED_MISSING_REASON}",
+    strict=True,
+)
+
+#: Shape 2b RAW — the data layer's whole output vocabulary. Anything else in an
+#: account state it emits is a seam violation, and `reserved_*` in particular is
+#: the governor's to derive from the ledger (A2 b).
+RAW_ACCOUNT_FIELDS = ("as_of", "cash", "buying_power", "positions")
+
+
+def _load_df(name):
+    with (DF_FIXTURES / name).open() as fh:
+        return json.load(fh)
+
+
+@pytest.fixture(scope="session")
+def df_contracts_pages():
+    """The two recorded /v2/options/contracts pages, in order."""
+    return [_load_df("contracts_page1.json"), _load_df("contracts_page2.json")]
+
+
+@pytest.fixture(scope="session")
+def df_snapshots_body():
+    return _load_df("snapshots_indicative.json")
+
+
+@pytest.fixture(scope="session")
+def df_account():
+    return _load_df("account.json")
+
+
+@pytest.fixture(scope="session")
+def df_positions():
+    return _load_df("positions.json")
+
+
+@pytest.fixture(scope="session")
+def df_positions_mixed():
+    """HAND-authored: the dev account is flat, so no recording shows this."""
+    return _load_df("positions_mixed.HAND.json")
+
+
+#: /v2/clock reports ONE state at a moment, so the open half of the pair can only
+#: be recorded while the market is open. Until it is, the two tests that need it
+#: are strict-xfail on its ABSENCE and arm themselves the instant the recorded
+#: file appears — the same pattern as the module probes above, and for the same
+#: reason: a fixture that was written rather than recorded would make this suite
+#: pass against data no venue ever sent.
+CLOCK_OPEN_FIXTURE = DF_FIXTURES / "clock_open.json"
+CLOCK_OPEN_MISSING = not CLOCK_OPEN_FIXTURE.exists()
+
+requires_clock_open = pytest.mark.xfail(
+    CLOCK_OPEN_MISSING,
+    reason="the OPEN /v2/clock has not been recorded yet: run "
+           "`python scripts/record_fixtures.py --only clock` while the market is "
+           "open. Nothing is derived from the closed clock",
+    strict=True,
+)
+
+
+@pytest.fixture(scope="session")
+def df_clock_open():
+    """The recorded OPEN clock, or None until it has been recorded.
+
+    Returning None rather than raising is deliberate: a fixture that raises
+    during setup is an ERROR, and an error cannot be an expected failure. This
+    way the dependent tests fail in their own call phase, `requires_clock_open`
+    converts that to a strict xfail, and the day the file lands they arm with no
+    edit to any assertion.
+    """
+    return _load_df("clock_open.json") if not CLOCK_OPEN_MISSING else None
+
+
+@pytest.fixture(scope="session")
+def df_clock_closed():
+    return _load_df("clock_closed.json")
+
+
+@pytest.fixture(scope="session")
+def df_calendar():
+    return _load_df("calendar.json")
+
+
+@pytest.fixture(scope="session")
+def df_calendar_halfday():
+    """HAND-authored: Thanksgiving 2026 — an omitted holiday and a 13:00 close."""
+    return _load_df("calendar_halfday.HAND.json")
+
+
+#: A config that passes the paper guard. Credential-shaped, credential-free:
+#: these are obvious non-secrets, and no test ever needs a real key.
+FAKE_CONFIG = {
+    "api_key": "RECORDED-NOT-A-KEY",
+    "secret_key": "RECORDED-NOT-A-SECRET",
+    "trading_base_url": "https://paper-api.alpaca.markets",
+    "data_base_url": "https://data.alpaca.markets",
+}
+
+
+class RecordedResponse:
+    """The slice of a requests.Response the data layer is allowed to use."""
+
+    def __init__(self, status_code, body, text=None):
+        self.status_code = status_code
+        self._body = body
+        self.text = text if text is not None else json.dumps(body)
+
+    def json(self):
+        if self._body is NOT_JSON:
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
+        return self._body
+
+
+NOT_JSON = object()
+
+
+class RecordedSession:
+    """A transport backed by recorded bodies. It has no network in it at all.
+
+    Routes are keyed by URL path; a route is either a body or a callable taking
+    the query params, which is how the two recorded contracts pages are served
+    to a caller following `next_page_token`.
+
+    Every request is recorded — path, params, and the NAMES of the headers sent,
+    never their values — so a test can assert that auth was sent without a secret
+    ever entering the suite.
+    """
+
+    def __init__(self, routes=None):
+        self.routes = dict(routes or {})
+        self.requests = []
+
+    def get(self, url, headers=None, params=None, timeout=None):
+        path = url.split("://", 1)[-1].partition("/")[2]
+        path = "/" + path
+        self.requests.append({
+            "url": url,
+            "path": path,
+            "params": dict(params or {}),
+            "timeout": timeout,
+            "header_names": sorted(headers or {}),
+        })
+        assert "/orders" not in path, (
+            f"a GB-D test asked for {path!r}. Nothing in the data layer may touch "
+            f"an orders endpoint: the data layer reads, and the executor — which "
+            f"does not exist yet — is the only thing that writes"
+        )
+        if path not in self.routes:
+            raise AssertionError(
+                f"RecordedSession has no recorded body for {path!r}. A GB-D test "
+                f"that wants one records it; it never falls through to a network"
+            )
+        route = self.routes[path]
+        body = route(dict(params or {})) if callable(route) else route
+        if isinstance(body, RecordedResponse):
+            return body
+        return RecordedResponse(200, body)
+
+    def paths(self):
+        return [request["path"] for request in self.requests]
+
+
+def paged_contracts(pages):
+    """Serve recorded contracts pages the way the endpoint does: by page_token."""
+    def route(params):
+        token = params.get("page_token")
+        if token is None:
+            return pages[0]
+        for page in pages:
+            if page.get("next_page_token") == token:
+                index = pages.index(page) + 1
+                if index < len(pages):
+                    return pages[index]
+        raise AssertionError(f"unknown page_token {token!r}")
+    return route
+
+
+# ---------------------------------------------------------------------------
+# The live band — opt-in only
+# ---------------------------------------------------------------------------
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--live",
+        action="store_true",
+        default=False,
+        help="run the @pytest.mark.live smoke test against the DEV paper account "
+             "(reads only; never submits an order). Skipped by default.",
+    )
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "live: touches the DEV paper account over the network. Skipped unless "
+        "--live is passed. Read-only, always.",
+    )
+
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--live"):
+        return
+    skip = pytest.mark.skip(reason="live band: pass --live to run it (read-only)")
+    for item in items:
+        if "live" in item.keywords:
+            item.add_marker(skip)

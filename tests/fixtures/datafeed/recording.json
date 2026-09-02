@@ -1,0 +1,72 @@
+{
+  "_note": "Recorded from the DEV paper account by scripts/record_fixtures.py. Account identity is scrubbed to the account id; no credential is written anywhere in this directory. Bodies are verbatim otherwise.",
+  "recorded_at": "2026-09-02T11:47:31.892199Z",
+  "requests": [
+    {
+      "file": "account.json",
+      "endpoint": "/v2/account",
+      "params": {},
+      "recorded_at": "2026-09-02T11:47:31.892199Z"
+    },
+    {
+      "file": "calendar.json",
+      "endpoint": "/v2/calendar",
+      "params": {
+        "start": "2026-08-23",
+        "end": "2026-09-03"
+      },
+      "recorded_at": "2026-09-02T11:47:31.892199Z"
+    },
+    {
+      "file": "clock_closed.json",
+      "endpoint": "/v2/clock",
+      "params": {},
+      "recorded_at": "2026-09-02T11:47:31.892199Z"
+    },
+    {
+      "file": "contracts_page1.json",
+      "endpoint": "/v2/options/contracts",
+      "params": {
+        "underlying_symbols": "SPY",
+        "expiration_date_gte": "2026-09-23",
+        "expiration_date_lte": "2026-10-17",
+        "type": "call",
+        "strike_price_gte": 500,
+        "strike_price_lte": 505,
+        "limit": 6
+      },
+      "recorded_at": "2026-09-02T11:47:31.892199Z"
+    },
+    {
+      "file": "contracts_page2.json",
+      "endpoint": "/v2/options/contracts",
+      "params": {
+        "underlying_symbols": "SPY",
+        "expiration_date_gte": "2026-09-23",
+        "expiration_date_lte": "2026-10-17",
+        "type": "call",
+        "strike_price_gte": 500,
+        "strike_price_lte": 505,
+        "limit": 6,
+        "page_token": "<token from page 1>"
+      },
+      "recorded_at": "2026-09-02T11:47:31.892199Z"
+    },
+    {
+      "file": "positions.json",
+      "endpoint": "/v2/positions",
+      "params": {},
+      "recorded_at": "2026-09-02T11:47:31.892199Z"
+    },
+    {
+      "file": "snapshots_indicative.json",
+      "endpoint": "/v1beta1/options/snapshots",
+      "params": {
+        "symbols": "<10 symbols from the contracts pages>",
+        "feed": "indicative",
+        "limit": 100
+      },
+      "recorded_at": "2026-09-02T11:47:31.892199Z"
+    }
+  ]
+}
