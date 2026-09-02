@@ -26,7 +26,18 @@ Two humans, two AI pods, one system. See:
 ## Setup
 1. Python 3.11+; create a virtualenv.
 2. Copy `.env.example` to `.env` and fill in your Alpaca **paper** keys. Never commit `.env`.
-3. (build steps land here as modules come online)
+3. Run the offline suites: `python -m pytest -q` (screener suite: 4 pass, 12 xfail until the screener lands).
+
+## Data layer (glassbox/data_layer.py)
+Raw Alpaca REST pass-throughs; paper only; no thresholds, no config I/O.
+```python
+from glassbox import data_layer as dl
+client = dl.AlpacaClient.from_env()          # refuses any non-paper trading URL
+chain = dl.get_contracts(client, "SPY", "2026-09-18", "2026-09-18")
+snaps = dl.get_snapshots(client, "SPY", symbols=[c["symbol"] for c in chain["option_contracts"]])
+```
+`dl.account_state(client)` emits shape 2b for the governor (reservations zero per A2 option b);
+`dl.resolve_as_of(client)` is the A5 option (a) `as_of` policy. Live smoke test: `GLASSBOX_LIVE=1 python -m pytest -q tests/test_data_layer_live.py` (read-only).
 
 ## License
 MIT — see `LICENSE`.
