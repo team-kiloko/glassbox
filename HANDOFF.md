@@ -16,6 +16,60 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 09:30 UTC - Jhoosier - CLOSE
+- **Changed:** Data layer landed on branch `claude/jhoosier-data-layer-2evft4`
+  (Jhoosier lead per B1). New package `glassbox/` (`__init__.py`,
+  `data_layer.py`). Built against the sign-off draft plus the Jhoosier
+  review positions: A2 (b), A5 (a), F2 C1-C4; draft PLACEHOLDER names kept
+  as written. Surface: `AlpacaClient(api_key, secret_key, trading_base_url,
+  data_base_url)` + `from_env()` (reads ALPACA_API_KEY / ALPACA_SECRET_KEY /
+  ALPACA_TRADING_BASE_URL / ALPACA_DATA_BASE_URL; refuses a non-paper
+  trading URL by raising; missing keys raise naming the variables; timeout
+  15 s; non-200 raises `DataLayerError` with status + body excerpt).
+  Raw pass-throughs: `get_account` (+`as_of`), `get_positions`,
+  `get_open_orders` (nested legs), `get_clock`, `get_calendar`.
+  `get_contracts` / `get_snapshots` follow `next_page_token` and return the
+  exact fixture shapes: numerics stay strings on contracts, null greeks
+  pass through as null, absent symbols stay absent (screener's
+  `no_snapshot`). `get_snapshots(symbols=...)` uses the by-contract endpoint
+  `/v1beta1/options/snapshots?symbols=` (same body shape); without symbols
+  it is the per-underlying chain endpoint. `account_state` emits shape 2b
+  with `reserved_cash: 0.0` / `reserved_shares: 0` (governor owns
+  reservations, A2 b; module docstring says why); shares from us_equity
+  positions only, int; money floats. `resolve_as_of` is A5 (a): open -> now
+  UTC, closed -> last session close from /v2/calendar (7-day lookback,
+  America/New_York close converted to UTC). `parse_rfc3339` truncates ns to
+  us (fixtures trap 6) and is used everywhere. `requests` only, no
+  alpaca-py, no caching, no config file I/O.
+  Tests: `tests/test_data_layer.py` (offline, `requests.Session.get`
+  monkeypatched, fixtures as bodies; 27 pass) and
+  `tests/test_data_layer_live.py` (read-only, skipped unless
+  GLASSBOX_LIVE=1; GETs only, never an order). `pytest.ini` adds
+  `pythonpath = .` so `glassbox.*` imports from any cwd — this also makes
+  conftest's `glassbox.screener` candidate resolvable once the screener
+  lands. README gained a data-layer snippet. requirements.txt unchanged
+  (nothing new needed). Screener suite unchanged: 4 pass, 12 xfail.
+  Live smoke test NOT run this session (no .env on this box); run it once
+  from a box with dev keys before trusting the live shapes.
+- **Frozen:** `GB_INTERFACES.md`, `GB_INTERFACES.SIGNOFF-DRAFT.md`,
+  `tests/test_screener_contract.py`, `tests/conftest.py`, everything under
+  `tests/fixtures/` — all untouched. `glassbox/screener.py` path reserved
+  for teakeycee, not created. Dev account untouched (no calls made).
+- **Blocked:** teakeycee's signature on the draft (C1-C4 confirmation).
+  The data layer is built to the draft + Jhoosier positions; if sign-off
+  moves A2 or A5, `account_state` / `resolve_as_of` are the only two
+  functions that change. Live run of `tests/test_data_layer_live.py`
+  pending a box with the dev .env.
+- **Attack next:** teakeycee: the screener can now be exercised against
+  live snapshots via the data layer — `client = dl.AlpacaClient.from_env()`,
+  `dl.get_contracts(client, "SPY", exp, exp)` then
+  `dl.get_snapshots(client, "SPY", symbols=[...])` feed `screen_chain`
+  directly with `as_of = dl.resolve_as_of(client)`. The `account_state`
+  emitter for the governor is ready with reservations zeroed per A2 (b);
+  the governor overlays its ledger-derived reservations on top. Please
+  also run `GLASSBOX_LIVE=1 python -m pytest -q tests/test_data_layer_live.py`
+  on the US box (read-only) and note the result in your block.
+
 ### 2026-09-02 06:10 UTC - Jhoosier - OPEN
 - **Changed:** Documentation only. (1) `docs/F2_wire_check.md`: F2 verified
   against Alpaca's SDK reference and Level 3 guide. Sign convention matches
