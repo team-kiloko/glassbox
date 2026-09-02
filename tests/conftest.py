@@ -4,6 +4,7 @@ Two suites live here, built to the same pattern:
 
   GB-S  chain screener   — GB_INTERFACES.md shape 6
   GB-C  governor         — GB_INTERFACES.md shape 3 (+ 2, 2b, 3a)
+  GB-L  provenance ledger — GB_INTERFACES.md shape 5 (+ 5a, and 4's id scheme)
 
 Each suite has a fixture-integrity band that runs today and guards the golden
 data, and a behaviour band that is strict-xfail until its module lands and then
@@ -52,6 +53,7 @@ OCC = re.compile(r"^(?P<root>[A-Z]{1,6})(?P<yy>\d{2})(?P<mm>\d{2})(?P<dd>\d{2})"
 # suite does not care which, and these lists are the only thing that needs editing.
 _SCREENER_CANDIDATES = ("glassbox.screener", "screener")
 _GOVERNOR_CANDIDATES = ("glassbox.governor", "governor")
+_LEDGER_CANDIDATES = ("glassbox.ledger", "ledger")
 
 
 def _import_module(candidates, entry_point):
@@ -88,6 +90,15 @@ requires_screener = pytest.mark.xfail(
 requires_governor = pytest.mark.xfail(
     GOVERNOR_MISSING,
     reason=f"governor has not landed yet: {GOVERNOR_MISSING_REASON}",
+    strict=True,
+)
+
+LEDGER, LEDGER_MISSING_REASON = _import_module(_LEDGER_CANDIDATES, "append_root")
+LEDGER_MISSING = LEDGER is None
+
+requires_ledger = pytest.mark.xfail(
+    LEDGER_MISSING,
+    reason=f"provenance ledger has not landed yet: {LEDGER_MISSING_REASON}",
     strict=True,
 )
 
@@ -343,3 +354,71 @@ def net_from_legs(proposal):
         sign = 1 if leg["action"] == "buy" else -1
         total += sign * leg["limit_price"] * leg["ratio_qty"]
     return round(total, 6)
+
+
+# ---------------------------------------------------------------------------
+# GB-L — provenance ledger
+# ---------------------------------------------------------------------------
+
+LEDGER_FIXTURES = FIXTURES / "ledger"
+
+#: Shape 5's field order, with `corrects` (PROPOSED) seated next to `root_id`.
+#: This IS the canonical serialization order; entries.jsonl is written in it.
+ENTRY_FIELDS = (
+    "id", "root_id", "corrects", "ts", "as_of", "mode", "status",
+    "config_version", "prompt_version", "code_version",
+    "approved_by", "approved_at", "snapshot", "proposal", "verdict",
+    "order", "fill",
+)
+
+#: The seam's shape 5 status vocabulary, plus the one PROPOSED addition the root
+#: decision entry needs (5a writes it pre-submission). Adding a value is a seam
+#: change; this tuple is what the suite holds the module to.
+SEAM_STATUSES = (
+    "governor_rejected", "submitted", "broker_rejected", "filled",
+    "partial_fill", "expired", "canceled",
+)
+PROPOSED_STATUSES = ("approved_pending",)
+
+#: Root entries carry the decision; follow-ups carry the transition.
+ROOT_ONLY_FIELDS = ("snapshot", "proposal", "verdict")
+
+
+@pytest.fixture(scope="session")
+def ledger_path():
+    return LEDGER_FIXTURES / "entries.jsonl"
+
+
+@pytest.fixture(scope="session")
+def ledger_lines(ledger_path):
+    """The golden file's raw lines — the serialization is part of the contract."""
+    return ledger_path.read_text(encoding="utf-8").splitlines()
+
+
+@pytest.fixture(scope="session")
+def entries(ledger_lines):
+    return [json.loads(line) for line in ledger_lines]
+
+
+@pytest.fixture(scope="session")
+def expected_chains():
+    with (LEDGER_FIXTURES / "expected_chains.json").open() as fh:
+        return json.load(fh)
+
+
+@pytest.fixture()
+def entry_by_id(entries):
+    return {entry["id"]: entry for entry in entries}
+
+
+def roots_of(entries):
+    return [entry for entry in entries if entry["root_id"] is None]
+
+
+def chain_of(entries, root_id):
+    """The append-ordered chain for a root, folded the way the dashboard must.
+
+    Independent of the module under test, and deliberately NOT contiguity-based:
+    the golden file interleaves chains.
+    """
+    return [e for e in entries if (e["root_id"] or e["id"]) == root_id]

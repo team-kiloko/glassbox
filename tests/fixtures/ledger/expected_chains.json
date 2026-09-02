@@ -1,0 +1,69 @@
+{
+  "_status": "GOLDEN — the expected fold of entries.jsonl, per GB_INTERFACES.md 5a.",
+  "_note": "The dashboard folds chains by root id (5a). The entries in entries.jsonl are deliberately NOT contiguous per chain — C's correction, D's cancel and E's expiry all land after later chains opened — so a fold that assumes contiguity is wrong here and right nowhere.",
+
+  "ledger_file": "entries.jsonl",
+  "thresholds_ref": "../governor/thresholds.governor.PROPOSED.json",
+
+  "terminal_statuses": ["governor_rejected", "broker_rejected", "filled",
+                        "expired", "canceled"],
+  "in_flight_statuses": ["approved_pending", "submitted", "partial_fill"],
+
+  "chains": {
+    "0198f3c2-1a44-7c31-9b02-00000000a001": {
+      "entry_ids": ["0198f3c2-1a44-7c31-9b02-00000000a001",
+                    "0198f3c2-1a44-7c31-9b02-00000000a002",
+                    "0198f3c2-1a44-7c31-9b02-00000000a003",
+                    "0198f3c2-1a44-7c31-9b02-00000000a004"],
+      "status": "filled", "terminal": true,
+      "gb_c_case": "debit_vertical_approved",
+      "why": "The happy path: decision, submission, a partial, then a full fill."
+    },
+    "0198f3c2-1a44-7c31-9b02-00000000b001": {
+      "entry_ids": ["0198f3c2-1a44-7c31-9b02-00000000b001"],
+      "status": "governor_rejected", "terminal": true,
+      "gb_c_case": "false_claim_rejected_by_computed_figure",
+      "why": "A governor rejection is COMPLETE at the root: the full verdict is embedded, order and fill are null, and no follow-up is ever appended because no order was built."
+    },
+    "0198f3c2-1a44-7c31-9b02-00000000c001": {
+      "entry_ids": ["0198f3c2-1a44-7c31-9b02-00000000c001",
+                    "0198f3c2-1a44-7c31-9b02-00000000c002",
+                    "0198f3c2-1a44-7c31-9b02-00000000c003",
+                    "0198f3c2-1a44-7c31-9b02-00000000c004"],
+      "status": "broker_rejected", "terminal": true,
+      "gb_c_case": "cash_secured_put_approved",
+      "why": "Carries the correction entry: c004 references c003 and restates the reject reason. c003 is still in the file, byte for byte — a correction appends, it never edits."
+    },
+    "0198f3c2-1a44-7c31-9b02-00000000d001": {
+      "entry_ids": ["0198f3c2-1a44-7c31-9b02-00000000d001",
+                    "0198f3c2-1a44-7c31-9b02-00000000d002",
+                    "0198f3c2-1a44-7c31-9b02-00000000d003"],
+      "status": "canceled", "terminal": true,
+      "gb_c_case": "covered_call_approved",
+      "why": "Human-approved covered call, pulled before it filled."
+    },
+    "0198f3c2-1a44-7c31-9b02-00000000e001": {
+      "entry_ids": ["0198f3c2-1a44-7c31-9b02-00000000e001",
+                    "0198f3c2-1a44-7c31-9b02-00000000e002",
+                    "0198f3c2-1a44-7c31-9b02-00000000e003"],
+      "status": "expired", "terminal": true,
+      "gb_c_case": "credit_vertical_approved",
+      "why": "prompt_version is null: this proposal was hand-authored, no LLM produced it. The field is null, not absent, and not a placeholder string."
+    },
+    "0198f3c2-1a44-7c31-9b02-00000000f001": {
+      "entry_ids": ["0198f3c2-1a44-7c31-9b02-00000000f001",
+                    "0198f3c2-1a44-7c31-9b02-00000000f002",
+                    "0198f3c2-1a44-7c31-9b02-00000000f003"],
+      "status": "partial_fill", "terminal": false,
+      "gb_c_case": "debit_vertical_approved",
+      "why": "THE in-flight chain. partial_fill is NON-TERMINAL (5a): this position is still working and may yet be filled, expired or canceled. A reader that treats it as an end state misfiles a live order."
+    }
+  },
+
+  "corrections": {
+    "0198f3c2-1a44-7c31-9b02-00000000c004": "0198f3c2-1a44-7c31-9b02-00000000c003"
+  },
+
+  "autopilot_roots": ["0198f3c2-1a44-7c31-9b02-00000000a001"],
+  "null_prompt_roots": ["0198f3c2-1a44-7c31-9b02-00000000e001"]
+}
