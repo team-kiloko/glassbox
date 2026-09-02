@@ -16,6 +16,7 @@ fixture's `timestamp`: `2026-09-02T15:30:00Z` open, `2026-09-02T01:00:00Z` close
 | `account_states.json` | account state, seam shape 2b (raw **and** composed) |
 | `clocks.json` | `GET /v2/clock`, for `market_open` (6c) |
 | `expected_verdicts.json` | the golden verdict per case, seam shape 3 |
+| `ledger_churn_case.jsonl` | **evidence, not a fixture** — 2026-09-02's real competition ledger |
 
 ## The 18 cases: 4 approve, 14 reject
 
@@ -99,6 +100,16 @@ last opening order whether or not it filled), or
 `as_of - position_opened_at < min_hold_seconds` (the open position on that
 underlying is younger than the minimum hold).
 
+**Amended 2026-09-02 — what "an open position" means.** Both facts are composed over
+every chain that is **risk bearing** (`approved_pending`, `submitted`,
+`partial_fill`, `filled`), not over the chains that are still in flight. `filled` is
+terminal as an *order* and open as a *position*, and composing this block over the
+in-flight set made both windows measure how long an order had been outstanding —
+so they released the instant it filled. A chain leaves the set only when a
+**closing follow-up** (`expired`, `canceled`) is appended, or when it never opened
+anything (`governor_rejected`, `broker_rejected`). See
+`glassbox.governor.compose_account_view` and GB-C-30..34.
+
 ## The `ledger` block — governor-derived, proposed for the seam
 
 `composed_*` account states carry a **`ledger`** block that the seam's 2b composed
@@ -133,3 +144,28 @@ zero and approve double-claims all day.
 caps, `cash_floor_pct`, both windows, the position caps — was chosen so each fixture
 sits unambiguously on one side of its threshold. None of them is a trading
 judgement, and the real config must supersede this file before anything trades.
+
+## `ledger_churn_case.jsonl` — the case, not a case
+
+A **byte-for-byte copy of `demo/ledger_competition_sample.jsonl`**: the eight
+entries the scored competition account actually wrote on 2026-09-02. Two governed
+SPY put verticals, decided 55 seconds apart, both approved, both filled.
+
+It is here because the second one should not have been approvable. The composed
+account view answered *"when did we last open on SPY?"* over the chains still in
+flight; the first chain had already reached `filled`; so `churn_guard` passed with
+`seconds_since_last_open=null` on a book that plainly held the position — while
+`x_position_cap` and `x_total_open_risk`, composed over the risk-bearing set, could
+see it perfectly well in the same view. One ledger, two answers.
+
+Being real is the point, and it is why this file is a copy rather than a staged
+fixture: GB-C-31 re-decides that exact proposal, against that account state, on
+that clock, under that config, and asserts the verdict flips on `churn_guard` **and
+on nothing else**. A hand-authored fixture could only have asserted that the fix
+works on a case built to make it work.
+
+GB-C-F09 holds the file to being what it claims: same underlying, 55 seconds,
+inside the window, the first chain terminal-`filled` at the moment of the second
+decision, the recorded `churn_guard` detail still reading `null`, and the scored
+config's content hash still matching the `config_version` those verdicts name.
+Do not regenerate it.

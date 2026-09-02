@@ -285,6 +285,49 @@ def scored_thresholds():
         return json.load(fh)
 
 
+#: The SCORED-RUN config the competition account actually traded under. Read for
+#: the same reason `scored_thresholds` is: the churn case below is a REAL pair of
+#: decisions made under this exact file, and replaying them under the suite's
+#: synthetic thresholds would be replaying a different day.
+@pytest.fixture(scope="session")
+def competition_thresholds():
+    with (CONFIG_DIR / "thresholds.competition.json").open() as fh:
+        return json.load(fh)
+
+
+@pytest.fixture(scope="session")
+def churn_case_entries():
+    """2026-09-02's competition ledger, verbatim: the case the fix is about.
+
+    Two governed orders on SPY, 55 seconds apart, both approved, both filled.
+    The second was approvable only because the first had already FILLED and so
+    was invisible to `churn_guard` — the composed view answered "when did we
+    last open on SPY?" over the chains still in flight. This file is a byte copy
+    of `demo/ledger_competition_sample.jsonl`; it is evidence, not a staged
+    fixture, and GB-C-F09 asserts it is still the thing it claims to be.
+    """
+    path = GOV_FIXTURES / "ledger_churn_case.jsonl"
+    return [json.loads(line) for line in
+            path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def raw_of(composed):
+    """The 2b RAW subset of a recorded composed view.
+
+    `compose_account_view` passes `as_of`, `cash`, `buying_power` and
+    `positions[].shares` straight through, so the raw state a recorded view was
+    built from can be recovered from the view itself — which is what lets the
+    suite re-compose a REAL decision's inputs without a broker.
+    """
+    return {
+        "as_of": composed["as_of"],
+        "cash": composed["cash"],
+        "buying_power": composed["buying_power"],
+        "positions": {symbol: {"shares": position["shares"]}
+                      for symbol, position in composed["positions"].items()},
+    }
+
+
 @pytest.fixture(scope="session")
 def gov_golden():
     return _load_gov("expected_verdicts.json")

@@ -113,15 +113,11 @@ SCREENER_THRESHOLDS = REPO / "tests" / "fixtures" / "thresholds.PROPOSED.json"
 #: that knows, so a run cannot silently write scored orders into the dev ledger.
 PROFILES = REPO / "config" / "profiles.json"
 
-#: A chain whose current status means an order exists, or may still. These are
-#: the positions that BEAR RISK, and they are not the same set as the chains
-#: that are still in flight: `filled` is terminal — the order's story is over —
-#: and the position it opened is very much alive. Reservations and the churn
-#: window read the in-flight set (a filled position no longer commits collateral
-#: it has already spent); the risk aggregate and the position count read this
-#: one, because a cap on open positions that ignores the filled ones is not a
-#: cap on anything.
-RISK_BEARING = frozenset({"approved_pending", "submitted", "partial_fill", "filled"})
+#: Re-exported for readers of this script. The set — and the composition of the
+#: whole account view — belongs to the GOVERNOR (A2 b) and was promoted there on
+#: 2026-09-02, which is the commit that also stopped `churn_guard` being blind to
+#: a filled position. Nothing about it is decided here any more.
+RISK_BEARING = governor_mod.RISK_BEARING
 
 #: A bound on the sizing search, so a mis-stated cap cannot walk the governor up
 #: to an absurd quantity. It is not a risk limit — the governor's caps are — it
@@ -281,100 +277,18 @@ def confirm_account(transport, profile, config):
 
 
 # ---------------------------------------------------------------------------
-# The governor's composed account view (A2 b), derived from the ledger
+# The governor's composed account view (A2 b) — PROMOTED to the governor
 # ---------------------------------------------------------------------------
+#
+# `compose_account_view` used to live here, and that is exactly how a filled
+# position became invisible to `churn_guard`: this script composed
+# `recent_activity` over the chains that were still IN FLIGHT, and a filled
+# chain is terminal as an ORDER. A2(b) always assigned the composition to the
+# governor; on 2026-09-02 it was moved there, with GB-C criteria of its own, and
+# this script imports it. Nothing about what the governor sees is decided in a
+# harness any more.
 
-def compose_account_view(raw, entries, equity):
-    """Raw broker state + ledger-derived reservations = the governor's view (2b).
-
-    NOTE for both humans: A2(b) assigns this composition to the GOVERNOR, and it
-    belongs in `glassbox/governor.py` with GB-C criteria of its own. It lives
-    here for now because promoting it would add uncovered code to a module whose
-    suite is already armed; that promotion is the follow-up, not this commit.
-
-    Two different questions are asked of the same ledger, and they have two
-    different answers:
-
-    * **What collateral is already committed, and when did we last open?**
-      Answered over chains that have NOT reached a terminal state. Reserving
-      against terminal chains would double-count a position that is already
-      closed or was never opened.
-    * **What risk is on the book, and how many positions are open?** Answered
-      over chains that are RISK BEARING (:data:`RISK_BEARING`), which includes
-      `filled` — terminal as an ORDER, and very much open as a POSITION. A
-      position cap that ignored filled positions would cap nothing, and a
-      portfolio risk total that ignored them would be a total of the orders
-      still in flight rather than of the book.
-
-    `open_risk.total` is the GOVERNOR'S OWN arithmetic
-    (:func:`glassbox.governor.computed_max_loss`) applied to each position's
-    recorded proposal — never a figure the position claimed about itself, and
-    never a number this script works out on its own. Covered calls have no
-    standalone max-loss figure (2e), so they are counted as `unpriced_positions`
-    rather than folded in as a zero that would look like a fact.
-    """
-    view = {
-        "as_of": raw["as_of"],
-        "cash": raw["cash"],
-        "buying_power": raw["buying_power"],
-        # PROPOSED (2b amendment, 2026-09-02): total account equity, which a cap
-        # stated as a fraction of equity resolves against. Read from
-        # /v2/account through the transport whose identity was just confirmed.
-        "equity": equity,
-        "reserved_cash": 0.0,
-        "positions": {
-            symbol: {"shares": position["shares"], "reserved_shares": 0}
-            for symbol, position in raw["positions"].items()
-        },
-        # PROPOSED (carried in my 10:55 block, amendment 3): 2b's composed view
-        # does not print this block, but churn_guard, x_position_cap and
-        # x_total_open_risk are ledger-derived and fail closed without it.
-        "ledger": {
-            "open_positions": {},
-            "recent_activity": {},
-            "open_risk": {"total": 0.0, "counted_positions": 0,
-                          "unpriced_positions": 0},
-        },
-    }
-
-    open_risk = view["ledger"]["open_risk"]
-    for root in ledger_mod.list_roots(entries):
-        status, terminal = ledger_mod.current_status(entries, root["id"])
-        proposal = root.get("proposal") or {}
-        underlying = proposal.get("underlying")
-        if not underlying:
-            continue
-
-        if status in RISK_BEARING:
-            loss = governor_mod.computed_max_loss(proposal)
-            if loss is None:
-                open_risk["unpriced_positions"] += 1
-            else:
-                open_risk["total"] = round(open_risk["total"] + loss, 2)
-                open_risk["counted_positions"] += 1
-            counts = view["ledger"]["open_positions"]
-            counts[underlying] = counts.get(underlying, 0) + 1
-
-        if terminal:
-            continue
-
-        structure = proposal.get("structure")
-        qty = proposal.get("qty", 0)
-        if structure == "cash_secured_put":
-            view["reserved_cash"] += proposal["legs"][0]["strike"] * 100 * qty
-        elif structure == "covered_call":
-            position = view["positions"].setdefault(
-                underlying, {"shares": 0, "reserved_shares": 0}
-            )
-            position["reserved_shares"] += 100 * qty
-
-        activity = view["ledger"]["recent_activity"].setdefault(underlying, {})
-        opened = root["ts"]
-        if opened > activity.get("last_open_at", ""):
-            activity["last_open_at"] = opened
-            activity["position_opened_at"] = opened
-
-    return view
+compose_account_view = governor_mod.compose_account_view
 
 
 # ---------------------------------------------------------------------------

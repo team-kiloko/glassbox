@@ -50,6 +50,15 @@ ledger-derived and supplied by the composer; if it is absent the check fails
 closed, because "I do not know what is already on the book" must never resolve to
 "nothing is".
 
+**The composed account view is here too** (A2 b, promoted 2026-09-02). The
+governor is handed a view of the account, and the composition of that view — what
+counts as an open position, what still reserves collateral, when we last opened
+on an underlying — is part of what the checks MEAN. Leaving it in the harness is
+how `churn_guard` came to be blind to a filled position: the harness composed
+`recent_activity` over the chains still in flight, and a filled chain is terminal
+as an order while the position it opened is still open. See
+:func:`compose_account_view`.
+
 As in the screener, **data quality is rejected and a schema violation raises**: a
 proposal whose numbers do not reconcile earns a verdict, while a caller who hands
 over the data layer's raw account state where the governor's composed view
@@ -62,7 +71,8 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
-__all__ = ["govern", "CORE_RULES", "STRUCTURE_ENUM", "computed_max_loss"]
+__all__ = ["govern", "CORE_RULES", "STRUCTURE_ENUM", "computed_max_loss",
+           "compose_account_view", "RISK_BEARING"]
 
 #: The pinned core checks[] vocabulary (GB_INTERFACES.md 3a), in seam order.
 #: Renaming or removing one of these requires both humans. Extra checks this
@@ -825,3 +835,153 @@ def _age(timestamp, as_of):
     if parsed is None:
         return None
     return (as_of - parsed).total_seconds()
+
+
+# ---------------------------------------------------------------------------
+# The composed account view (A2 b) — PROMOTED here 2026-09-02
+# ---------------------------------------------------------------------------
+#
+# A2(b) assigns this composition to the GOVERNOR. It lived in
+# `scripts/dry_run.py` while the checks that consume it were being written,
+# which is how a filled position came to be invisible to `churn_guard`: the
+# harness composed `recent_activity` over the chains that were still IN FLIGHT,
+# and a filled chain is terminal as an ORDER. Nothing was wrong with any check;
+# the view they were handed was wrong, and the view is the governor's.
+#
+# So it is here, with GB-C criteria of its own, and the harness imports it.
+
+#: A chain whose current status means a POSITION EXISTS, or may still.
+#:
+#: This is deliberately NOT the set of chains that are still in flight.
+#: `filled` is TERMINAL as an order — the order's story is over — and the
+#: position it opened is very much alive. Every question about what is ON THE
+#: BOOK reads this set: the risk aggregate, the position count, and (since
+#: 2026-09-02) the churn window and the minimum hold.
+#:
+#: A chain leaves this set only when a CLOSING follow-up is appended to it —
+#: `expired`, `canceled` — or when it never opened anything at all
+#: (`governor_rejected`, `broker_rejected`). There is no way to leave it by
+#: doing nothing, which is the property the churn guard needs.
+RISK_BEARING = frozenset({"approved_pending", "submitted", "partial_fill", "filled"})
+
+#: Chains that still COMMIT COLLATERAL they have not yet spent. A filled
+#: cash-secured put has paid its collateral to the broker, and the raw `cash`
+#: the view is built on already reflects it; reserving against it a second time
+#: would charge the account twice for one position.
+_RESERVING = frozenset({"approved_pending", "submitted", "partial_fill"})
+
+
+def compose_account_view(raw, entries, equity):
+    """Raw broker state + ledger-derived reservations and activity = shape 2b.
+
+    Args:
+        raw: the data layer's 2b **RAW** account state — `as_of`, `cash`,
+            `buying_power`, `positions[].shares`, and nothing derived.
+        entries: every entry of the ledger this run writes to, in append order.
+        equity: total account equity, from the same `/v2/account` read whose
+            identity was confirmed. A cap stated as a fraction of equity
+            resolves against it (2b amendment, 2026-09-02).
+
+    Returns:
+        The composed view :func:`govern` accepts. Handing it `raw` instead
+        raises, so the two can never be confused in either direction.
+
+    Three different questions are asked of the same ledger, and they have three
+    different answers:
+
+    * **What risk is on the book, and how many positions are open?** Answered
+      over :data:`RISK_BEARING` chains. A position cap that ignored the filled
+      positions would cap nothing.
+    * **When did we last open on this underlying, and how long has it been
+      held?** Answered over :data:`RISK_BEARING` chains as well. *A filled
+      position is an open position.* Answering this over the in-flight set is
+      the defect this promotion fixes: it made the churn window and the minimum
+      hold measure how long an ORDER had been outstanding rather than how long
+      a POSITION had been held, so both released the moment the order filled —
+      which on 2026-09-02 let a second order onto the same underlying 55
+      seconds after the first (`tests/fixtures/governor/ledger_churn_case.jsonl`,
+      GB-C-31).
+    * **What collateral is committed but not yet spent?** Answered over
+      :data:`_RESERVING` — the in-flight chains only, unchanged by the fix.
+
+    `open_risk.total` is the governor's OWN arithmetic
+    (:func:`computed_max_loss`) applied to each position's recorded proposal —
+    never a figure the position claimed about itself. Covered calls have no
+    standalone max-loss figure (2e), so they are counted as
+    `unpriced_positions` rather than folded in as a zero that would look like a
+    fact.
+
+    The ledger module is imported inside the call, mirroring
+    :func:`glassbox.ledger.replay_root`'s import of this one: the two modules
+    genuinely use each other and neither may import the other at module scope.
+    """
+    from glassbox import ledger as ledger_mod
+
+    view = {
+        "as_of": raw["as_of"],
+        "cash": raw["cash"],
+        "buying_power": raw["buying_power"],
+        "equity": equity,
+        "reserved_cash": 0.0,
+        "positions": {
+            symbol: {"shares": position["shares"], "reserved_shares": 0}
+            for symbol, position in raw["positions"].items()
+        },
+        "ledger": {
+            "open_positions": {},
+            "recent_activity": {},
+            "open_risk": {"total": 0.0, "counted_positions": 0,
+                          "unpriced_positions": 0},
+        },
+    }
+
+    open_risk = view["ledger"]["open_risk"]
+    for root in ledger_mod.list_roots(entries):
+        status, _terminal = ledger_mod.current_status(entries, root["id"])
+        if status not in RISK_BEARING:
+            # Refused, never opened, or closed by a follow-up. It is not on the
+            # book, it does not reserve anything, and it does not hold the
+            # churn window open.
+            continue
+
+        proposal = root.get("proposal") or {}
+        underlying = proposal.get("underlying")
+        if not underlying:
+            continue
+
+        # -- what is on the book -------------------------------------------
+        loss = computed_max_loss(proposal)
+        if loss is None:
+            open_risk["unpriced_positions"] += 1
+        else:
+            open_risk["total"] = round(open_risk["total"] + loss, 2)
+            open_risk["counted_positions"] += 1
+        counts = view["ledger"]["open_positions"]
+        counts[underlying] = counts.get(underlying, 0) + 1
+
+        # -- when we last opened it, and how long it has been held ----------
+        # Both anchor on the ROOT entry's `ts`: the moment the decision to open
+        # was recorded, which 5a requires to be written before the order exists
+        # and which is therefore present on every risk-bearing chain, including
+        # one that has not filled yet. A fill timestamp would be a few seconds
+        # later and would exist on only some of them.
+        activity = view["ledger"]["recent_activity"].setdefault(underlying, {})
+        opened = root["ts"]
+        if opened > activity.get("last_open_at", ""):
+            activity["last_open_at"] = opened
+            activity["position_opened_at"] = opened
+
+        # -- collateral still committed -------------------------------------
+        if status not in _RESERVING:
+            continue
+        structure = proposal.get("structure")
+        qty = proposal.get("qty", 0)
+        if structure == "cash_secured_put":
+            view["reserved_cash"] += proposal["legs"][0]["strike"] * 100 * qty
+        elif structure == "covered_call":
+            position = view["positions"].setdefault(
+                underlying, {"shares": 0, "reserved_shares": 0}
+            )
+            position["reserved_shares"] += 100 * qty
+
+    return view

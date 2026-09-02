@@ -1107,3 +1107,307 @@ def test_gb_c_29_the_extensions_stay_extensions_and_the_arithmetic_is_public(
                                        "legs": [{"action": "sideways"}]}) is None, (
         "a proposal whose legs will not reconcile yields no figure, not a wrong one"
     )
+
+
+# ---------------------------------------------------------------------------
+# GB-C-F09 and GB-C-30..34 — the composed account view, promoted (A2 b)
+#
+# The composition of the account view the governor is handed is part of what
+# every ledger-derived check MEANS, and it lived in `scripts/dry_run.py` until
+# 2026-09-02. That is not a filing question. On 2026-09-02 the harness composed
+# `recent_activity` over the chains that were still IN FLIGHT; a filled chain is
+# terminal as an ORDER; and so `churn_guard` — a check whose entire job is to
+# stop a second position going on the same underlying too soon — could not see
+# the position that had just been opened. Two scored orders went on SPY 55
+# seconds apart, both correctly approved by every check as the checks were
+# written, and the guard that should have refused the second one passed with
+# `seconds_since_last_open=null`.
+#
+# The fixture is that day's ledger, byte for byte. These criteria are the fix.
+# ---------------------------------------------------------------------------
+
+CHURN_CASE_ROOT_1 = "20260902T150903Z-973c931c1d"
+CHURN_CASE_ROOT_2 = "20260902T150958Z-fe8c507ed1"
+
+
+def _root(entries, root_id):
+    for entry in entries:
+        if entry["id"] == root_id:
+            return entry
+    raise AssertionError(f"no entry {root_id!r} in the churn-case fixture")
+
+
+def _before(entries, root_id):
+    """Every entry the ledger held when `root_id` was decided."""
+    cut = _root(entries, root_id)["ts"]
+    return [entry for entry in entries if entry["ts"] < cut]
+
+
+def _closing_follow_up(entries, root_id, status, ts):
+    """A closing transition appended to a chain, as the executor would write it.
+
+    Built from the chain's own last entry so every provenance field rides the
+    chain rather than being restated here (5a).
+    """
+    from conftest import ENTRY_FIELDS
+
+    last = [e for e in entries if (e["root_id"] or e["id"]) == root_id][-1]
+    entry = {field: last[field] for field in ENTRY_FIELDS}
+    entry.update({"id": f"{root_id}+99-{status}", "root_id": root_id, "ts": ts,
+                  "status": status, "snapshot": None, "proposal": None,
+                  "verdict": None, "order": last["order"], "fill": None})
+    return entries + [entry]
+
+
+def test_gb_c_f09_the_churn_case_fixture_is_the_day_it_claims_to_be(
+    churn_case_entries, competition_thresholds
+):
+    """GB-C-F09: the fixture is 2026-09-02's real pair of orders, unaltered.
+
+    Everything below is an argument about a specific thing that happened. If the
+    fixture stops being that thing, the argument is about nothing.
+    """
+    import hashlib
+    from pathlib import Path
+
+    entries = churn_case_entries
+    root_1, root_2 = _root(entries, CHURN_CASE_ROOT_1), _root(entries, CHURN_CASE_ROOT_2)
+
+    # Same underlying, same structure, 55 seconds apart.
+    assert root_1["proposal"]["underlying"] == root_2["proposal"]["underlying"] == "SPY"
+    assert root_1["proposal"]["structure"] == root_2["proposal"]["structure"]
+    gap = (_parse(root_2["ts"]) - _parse(root_1["ts"])).total_seconds()
+    assert 54 < gap < 56, f"the case is 55 seconds apart, this fixture is {gap:.1f}"
+    assert gap < competition_thresholds["churn_window_seconds"], (
+        "the whole case is that the gap sits INSIDE the churn window"
+    )
+
+    # The first chain had already FILLED — terminal as an order — when the
+    # second decision was taken.
+    from conftest import LEDGER
+
+    before = _before(entries, CHURN_CASE_ROOT_2)
+    status, terminal = LEDGER.current_status(before, CHURN_CASE_ROOT_1)
+    assert (status, terminal) == ("filled", True)
+
+    # And here is the defect, recorded in the entry's own verdict: the guard
+    # passed, and its detail says why — it could not see anything at all.
+    churn = [c for c in root_2["verdict"]["checks"] if c["rule"] == "churn_guard"][0]
+    assert churn["passed"] is True
+    assert "seconds_since_last_open=null" in churn["detail"]
+    assert root_2["verdict"]["approved"] is True
+    # while the SAME view already counted the position for the checks composed
+    # over the risk-bearing set. One ledger, two answers.
+    recorded_view = root_2["snapshot"]["account_state"]
+    assert recorded_view["ledger"]["open_positions"] == {"SPY": 1}
+    assert recorded_view["ledger"]["recent_activity"] == {}
+
+    # The decisions were made under the scored config, and that config has not
+    # moved since: a verdict names the numbers it was made under.
+    digest = "sha256:" + hashlib.sha256(
+        (Path(__file__).parent.parent / "config" / "thresholds.competition.json")
+        .read_bytes()
+    ).hexdigest()
+    assert root_2["config_version"] == digest
+
+
+@requires_governor
+def test_gb_c_30_the_composed_view_belongs_to_the_governor(churn_case_entries):
+    """GB-C-30: the composition is the governor's, and it now sees the position.
+
+    Re-composing the second decision's own inputs must reproduce the view that
+    was recorded that day in every respect but one — the one that was wrong.
+    """
+    from conftest import GOVERNOR, raw_of
+
+    assert hasattr(GOVERNOR, "compose_account_view"), (
+        "A2 (b) assigns the composed account view to the governor; a harness that "
+        "composes it decides what the checks mean"
+    )
+    assert GOVERNOR.RISK_BEARING == frozenset(
+        {"approved_pending", "submitted", "partial_fill", "filled"}
+    ), "a filled chain is terminal as an order and open as a position"
+
+    entries = churn_case_entries
+    recorded = _root(entries, CHURN_CASE_ROOT_2)["snapshot"]["account_state"]
+    view = GOVERNOR.compose_account_view(
+        raw_of(recorded), _before(entries, CHURN_CASE_ROOT_2), recorded["equity"]
+    )
+
+    # Everything the composer already got right is untouched, to the cent.
+    assert view["ledger"]["open_positions"] == recorded["ledger"]["open_positions"]
+    assert view["ledger"]["open_risk"] == recorded["ledger"]["open_risk"]
+    assert view["reserved_cash"] == recorded["reserved_cash"]
+    assert view["positions"] == recorded["positions"]
+    assert view["equity"] == recorded["equity"]
+    assert {k: v for k, v in view.items() if k != "ledger"} == {
+        k: v for k, v in recorded.items() if k != "ledger"
+    }
+
+    # And the one thing it got wrong is now right: the filled chain holds the
+    # underlying open, anchored on the ROOT entry's ts (5a writes it first, so
+    # it is the one timestamp every risk-bearing chain has).
+    assert recorded["ledger"]["recent_activity"] == {}, "what was recorded"
+    opened = _root(entries, CHURN_CASE_ROOT_1)["ts"]
+    assert view["ledger"]["recent_activity"] == {
+        "SPY": {"last_open_at": opened, "position_opened_at": opened}
+    }
+
+
+@requires_governor
+def test_gb_c_31_a_filled_position_blocks_the_next_one_55_seconds_later(
+    churn_case_entries, competition_thresholds
+):
+    """GB-C-31: THE CASE. The second scored order must fail `churn_guard`.
+
+    Same proposal, same account, same clock, same config as the real decision —
+    only the composition of the view is fixed. The verdict must flip, and it
+    must flip on exactly one check: a fix that changed any other answer would be
+    a different change, and the record of what the other checks said that day
+    would stop meaning what it says.
+    """
+    from conftest import GOVERNOR, raw_of, run_governor
+
+    entries = churn_case_entries
+    second = _root(entries, CHURN_CASE_ROOT_2)
+    recorded = second["snapshot"]["account_state"]
+    view = GOVERNOR.compose_account_view(
+        raw_of(recorded), _before(entries, CHURN_CASE_ROOT_2), recorded["equity"]
+    )
+    verdict = run_governor(
+        second["proposal"], view, second["snapshot"]["clock"],
+        competition_thresholds, second["mode"], second["config_version"],
+    )
+
+    checks = checks_map(verdict)
+    assert checks["churn_guard"] is False
+    assert verdict["approved"] is False
+
+    fields = detail_fields(detail_for(verdict, "churn_guard"))
+    assert fields["underlying"] == "SPY"
+    assert fields["seconds_since_last_open"] == "55", (
+        "the guard must be able to say how long ago, not 'null'"
+    )
+    assert int(fields["churn_window_seconds"]) == \
+        competition_thresholds["churn_window_seconds"]
+    assert "re-entry on this underlying inside the churn window" in \
+        detail_for(verdict, "churn_guard")
+
+    # Exactly one check moved, and it is the one this is about.
+    recorded_checks = {c["rule"]: c["passed"] for c in second["verdict"]["checks"]}
+    flipped = {rule for rule, passed in checks.items()
+               if recorded_checks.get(rule) != passed}
+    assert flipped == {"churn_guard"}, (
+        f"the fix must change churn_guard and nothing else; it changed {flipped}"
+    )
+
+
+@requires_governor
+def test_gb_c_32_a_closing_follow_up_is_what_releases_an_underlying(
+    churn_case_entries, competition_thresholds
+):
+    """GB-C-32: the position is held open until a CLOSING follow-up says otherwise.
+
+    "Filled counts as open" would be a trap if nothing could ever clear it — the
+    guard would harden into a permanent ban on an underlying. What clears it is
+    the same thing that clears it in reality: an entry saying the position is
+    gone. Not the passage of a status, and never the absence of information.
+    """
+    from conftest import GOVERNOR, raw_of, run_governor
+
+    entries = churn_case_entries
+    second = _root(entries, CHURN_CASE_ROOT_2)
+    recorded = second["snapshot"]["account_state"]
+    before = _before(entries, CHURN_CASE_ROOT_2)
+
+    for closing in ("canceled", "expired"):
+        closed = _closing_follow_up(before, CHURN_CASE_ROOT_1, closing,
+                                    "2026-09-02T15:09:30.000000Z")
+        view = GOVERNOR.compose_account_view(raw_of(recorded), closed,
+                                             recorded["equity"])
+        assert view["ledger"]["recent_activity"] == {}, closing
+        assert view["ledger"]["open_positions"] == {}, closing
+        assert view["ledger"]["open_risk"]["total"] == 0.0, closing
+
+        verdict = run_governor(
+            second["proposal"], view, second["snapshot"]["clock"],
+            competition_thresholds, second["mode"], second["config_version"],
+        )
+        assert checks_map(verdict)["churn_guard"] is True, closing
+
+    # A `partial_fill` follow-up is NOT a closing one: it is not terminal, the
+    # position is real, and it goes on holding the underlying.
+    partial = _closing_follow_up(before, CHURN_CASE_ROOT_1, "partial_fill",
+                                 "2026-09-02T15:09:30.000000Z")
+    view = GOVERNOR.compose_account_view(raw_of(recorded), partial,
+                                         recorded["equity"])
+    assert set(view["ledger"]["recent_activity"]) == {"SPY"}
+    assert view["ledger"]["open_positions"] == {"SPY": 1}
+
+
+@requires_governor
+def test_gb_c_33_reservations_still_read_the_in_flight_set_only(churn_case_entries):
+    """GB-C-33: what the fix did NOT change — collateral is reserved once.
+
+    The three questions the view answers have three different answers, and only
+    one of them moved. A filled cash-secured put has already paid its collateral
+    to the broker, and the raw `cash` the view is built on reflects that;
+    reserving against it again would charge the account twice for one position.
+    """
+    from conftest import GOVERNOR, raw_of
+
+    entries = churn_case_entries
+    recorded = _root(entries, CHURN_CASE_ROOT_2)["snapshot"]["account_state"]
+    raw = raw_of(recorded)
+
+    csp_root = dict(
+        _root(entries, CHURN_CASE_ROOT_1),
+        id="csp-root", root_id=None, ts="2026-09-02T15:00:00.000000Z",
+        proposal={"underlying": "QQQ", "structure": "cash_secured_put", "qty": 1,
+                  "legs": [{"symbol": "QQQ260903P00500000", "action": "sell",
+                            "option_type": "put", "strike": 500.0,
+                            "expiry": "2026-09-03", "ratio_qty": 1,
+                            "limit_price": 1.00}],
+                  "net_debit_credit": -1.00, "rationale": "GB-C-33 fixture",
+                  "claimed_max_loss": 49900.0, "claimed_max_gain": 100.0},
+    )
+
+    in_flight = GOVERNOR.compose_account_view(raw, [csp_root], recorded["equity"])
+    assert in_flight["reserved_cash"] == 50000.0, (
+        "an approved, unsubmitted CSP still commits its collateral"
+    )
+
+    filled = _closing_follow_up([csp_root], "csp-root", "filled",
+                                "2026-09-02T15:00:05.000000Z")
+    view = GOVERNOR.compose_account_view(raw, filled, recorded["equity"])
+    assert view["reserved_cash"] == 0.0, (
+        "a filled CSP has spent its collateral; reserving it again double-counts"
+    )
+    # It is still a position, though, on every question about the book.
+    assert view["ledger"]["open_positions"] == {"QQQ": 1}
+    assert set(view["ledger"]["recent_activity"]) == {"QQQ"}
+
+
+@requires_governor
+def test_gb_c_34_a_chain_that_never_opened_anything_holds_nothing(churn_case_entries):
+    """GB-C-34: a refusal is not a position, and never blocks the next proposal.
+
+    The fixture carries a `governor_rejected` root at the same timestamp as each
+    approved one — the adversarial half of each run. Counting those would make
+    every rejection block the underlying for an hour, which is the mirror-image
+    defect of the one being fixed.
+    """
+    from conftest import GOVERNOR, raw_of
+
+    entries = churn_case_entries
+    recorded = _root(entries, CHURN_CASE_ROOT_2)["snapshot"]["account_state"]
+    rejected = [e for e in _before(entries, CHURN_CASE_ROOT_2)
+                if e["root_id"] is None and e["status"] == "governor_rejected"]
+    assert rejected, "the fixture should carry the rejected half of the run"
+
+    view = GOVERNOR.compose_account_view(raw_of(recorded), rejected,
+                                         recorded["equity"])
+    assert view["ledger"] == {
+        "open_positions": {}, "recent_activity": {},
+        "open_risk": {"total": 0.0, "counted_positions": 0, "unpriced_positions": 0},
+    }
