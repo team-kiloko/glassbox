@@ -820,3 +820,290 @@ def test_gb_c_24_no_bound_configured_passes_and_says_so(
     detail = detail_for(verdict, "x_max_expiry")
     assert detail_fields(detail)["max_expiry_date"] == "null"
     assert "no scored-run expiry bound" in detail
+
+
+# ---------------------------------------------------------------------------
+# GB-C-F08 and GB-C-25..29 — percentage-of-equity caps, and the portfolio cap
+#
+# Added 2026-09-02 with the scored competition account. Two additions, one
+# reason: a cap on a single trade is not a cap on the account, and a cap stated
+# in dollars is an absolute claim about a number that moves.
+#
+#   * A cap may be `{"pct_of_equity": f}` as well as a number of dollars. The
+#     governor resolves it against `equity` in its composed view, records the
+#     resolved figure AND its basis, and fails closed when it cannot resolve it.
+#     An unresolvable cap is not an absent one.
+#   * `x_total_open_risk` sums the governor's own computed max loss across the
+#     positions the ledger says are bearing risk, adds the proposal's, and
+#     compares the total against a portfolio cap. Not seam vocabulary, so it
+#     rides `x_` — the extension point 3a grants the governor lead.
+#
+# The golden exercises the dollar form (its 20 hand-authored verdicts did not
+# need re-tuning to gain a check that passes in all of them). These exercise the
+# percentage form, which is what the scored account actually runs on.
+# ---------------------------------------------------------------------------
+
+COMPETITION_CONFIG = "thresholds.competition.json"
+
+
+@pytest.fixture(scope="session")
+def competition_thresholds():
+    import json
+    from conftest import CONFIG_DIR
+
+    with (CONFIG_DIR / COMPETITION_CONFIG).open() as fh:
+        return json.load(fh)
+
+
+def test_gb_c_f08_the_competition_config_is_complete_and_says_what_it_decided(
+    competition_thresholds, gov_thresholds
+):
+    """GB-C-F08: the config a SCORED order is judged under, asserted rather than trusted.
+
+    This file's content hash is the `config_version` on every decision made on
+    the account whose closing equity is the judged number. A config nothing
+    asserts against is a config that can drift to anything.
+    """
+    config = competition_thresholds
+
+    # Every tunable the governor requires.
+    for key in ("max_loss_cap", "net_reconcile_tolerance", "cash_floor_pct",
+                "churn_window_seconds", "min_hold_seconds", "position_caps",
+                "max_expiry_date"):
+        assert key in config, f"competition config is missing {key}"
+
+    assert config["max_expiry_date"] == "2026-09-03", (
+        "every position this account takes must resolve inside the scored window"
+    )
+
+    # The three DECIDED numbers, and the fact that they are stated as fractions.
+    assert config["max_loss_cap"]["covered_call"] is None, (
+        "2e: a covered call has no standalone max-loss figure, and a percentage "
+        "there would be a number invented to look like a limit"
+    )
+    for structure in ("cash_secured_put", "vertical_spread"):
+        assert config["max_loss_cap"][structure] == {"pct_of_equity": 0.02}, structure
+    assert config["x_total_open_risk"] == {"pct_of_equity": 0.10}
+
+    # Each DECIDED number carries its reasoning in the file, or the reasoning is
+    # lost the moment the conversation that produced it ends.
+    for key in ("_sizing_rationale", "_max_expiry_rationale",
+                "_x_total_open_risk_rationale"):
+        assert config[key].strip(), f"{key} is empty"
+    assert "teakeycee" in config["_sizing_rationale"], (
+        "a sizing decision is a HUMAN's, and the file says whose"
+    )
+    assert "PROPOSED" in config["_status"], (
+        "the sizing numbers are decided; the rest of the file is not calibrated "
+        "and must not claim to be"
+    )
+
+    # Everything that is NOT one of the three decisions is inherited verbatim.
+    # A run whose thresholds were quietly tuned to fit its own trades proves
+    # nothing, so the drift is a test failure rather than a discovery.
+    decided = {"max_loss_cap", "max_expiry_date", "x_total_open_risk"}
+    inherited = [k for k in gov_thresholds
+                 if not k.startswith("_") and k not in decided]
+    assert inherited, "nothing shared to compare"
+    for key in inherited:
+        assert config[key] == gov_thresholds[key], (
+            f"{key} has drifted from the suite's reference config. Only the three "
+            f"DECIDED numbers may differ; the rest is inherited calibration"
+        )
+
+    # The liquidity window belongs to the harness's proposal helper, and is here
+    # so config_version covers what the proposal was CHOSEN under as well as
+    # what it was judged under.
+    window = config["liquidity_window"]
+    assert window["require_two_sided_quote"] is True
+    assert window["min_open_interest"] == 500
+    assert window["short_leg_abs_delta_min"] == 0.15
+    assert window["short_leg_abs_delta_max"] == 0.35
+    assert "PROPOSED" in window["_status"]
+
+
+@requires_governor
+def test_gb_c_25_a_cap_may_be_a_fraction_of_equity(govern, gov_thresholds,
+                                                   account_states):
+    """GB-C-25: `pct_of_equity` resolves against the composed view's equity.
+
+    And the resolved figure is not the whole record: the check's detail must
+    also say what it was a percentage OF, or a reader six weeks later cannot
+    tell a 2,000.00 cap that was 2% of 100,000.00 from one that was typed in.
+    """
+    equity = account_states["composed_flat"]["equity"]
+    generous = dict(gov_thresholds,
+                    max_loss_cap=dict(gov_thresholds["max_loss_cap"],
+                                      vertical_spread={"pct_of_equity": 0.02}))
+    verdict = govern(proposal="credit_vertical_ok", account="composed_flat",
+                     thresholds=generous)
+    fields = detail_fields(detail_for(verdict, "max_loss_cap"))
+    assert checks_map(verdict)["max_loss_cap"] is True
+    assert money(fields["cap"]) == pytest.approx(0.02 * equity, abs=CENT)
+    assert fields["cap_basis"] == "0.02_of_equity"
+    assert money(fields["equity"]) == pytest.approx(equity, abs=CENT)
+    assert money(fields["computed_max_loss"]) == pytest.approx(325.00, abs=CENT)
+
+    # The same proposal, the same account, a tighter fraction: rejected on the
+    # cap alone. The percentage is doing the work, not a coincidence.
+    tight = dict(gov_thresholds,
+                 max_loss_cap=dict(gov_thresholds["max_loss_cap"],
+                                   vertical_spread={"pct_of_equity": 0.002}))
+    verdict = govern(proposal="credit_vertical_ok", account="composed_flat",
+                     thresholds=tight)
+    checks = checks_map(verdict)
+    assert checks["max_loss_cap"] is False
+    assert [rule for rule, ok in checks.items() if not ok] == ["max_loss_cap"]
+    assert money(detail_fields(detail_for(verdict, "max_loss_cap"))["cap"]) == (
+        pytest.approx(0.002 * equity, abs=CENT)
+    )
+
+
+@requires_governor
+def test_gb_c_26_an_unresolvable_percentage_cap_fails_closed(gov_thresholds,
+                                                             account_states, clocks,
+                                                             proposals,
+                                                             gov_config_version):
+    """GB-C-26: a percentage of an equity nobody supplied is a REFUSAL.
+
+    The failure mode this exists for: a caller composes an account view without
+    `equity`, every percentage cap silently resolves to nothing, and the run
+    proceeds uncapped. An unresolvable cap is not an absent one.
+    """
+    account = {k: v for k, v in account_states["composed_flat"].items() if k != "equity"}
+    assert "equity" not in account
+    thresholds = dict(
+        gov_thresholds,
+        max_loss_cap=dict(gov_thresholds["max_loss_cap"],
+                          vertical_spread={"pct_of_equity": 0.02}),
+        x_total_open_risk={"pct_of_equity": 0.10},
+    )
+    verdict = run_governor(proposals["credit_vertical_ok"], account, clocks["open"],
+                           thresholds, "approve", gov_config_version)
+    checks = checks_map(verdict)
+    assert checks["max_loss_cap"] is False
+    assert checks["x_total_open_risk"] is False
+    for rule in ("max_loss_cap", "x_total_open_risk"):
+        detail = detail_for(verdict, rule)
+        assert "equity=null" in detail, detail
+        assert "fails closed" in detail or "failing closed" in detail, detail
+
+    # A malformed cap is a different thing entirely: that is a broken config, a
+    # caller error, and laundering it into a rejection would dress a bug up as a
+    # considered decision.
+    for broken in ({"pct_of_equity": 0}, {"pct_of_equity": "2%"}, "500.00", []):
+        with pytest.raises(ValueError):
+            run_governor(
+                proposals["credit_vertical_ok"], account_states["composed_flat"],
+                clocks["open"],
+                dict(gov_thresholds,
+                     max_loss_cap=dict(gov_thresholds["max_loss_cap"],
+                                       vertical_spread=broken)),
+                "approve", gov_config_version,
+            )
+
+
+@requires_governor
+def test_gb_c_27_the_portfolio_cap_counts_the_book_not_the_trade(govern,
+                                                                 gov_thresholds,
+                                                                 account_states):
+    """GB-C-27: every per-trade check passes and the trade is still refused.
+
+    The whole argument for the check, in one case: four trades each inside their
+    own cap reach the same place one oversized trade would.
+    """
+    verdict = govern(proposal="credit_vertical_ok",
+                     account="composed_open_risk_saturated")
+    checks = checks_map(verdict)
+    assert [rule for rule, ok in checks.items() if not ok] == ["x_total_open_risk"]
+    assert verdict["approved"] is False
+
+    fields = detail_fields(detail_for(verdict, "x_total_open_risk"))
+    already = account_states["composed_open_risk_saturated"]["ledger"]["open_risk"]["total"]
+    assert money(fields["open_risk_before"]) == pytest.approx(already, abs=CENT)
+    assert money(fields["proposed_max_loss"]) == pytest.approx(325.00, abs=CENT)
+    assert money(fields["total_open_risk"]) == pytest.approx(already + 325.00, abs=CENT)
+    assert money(fields["cap"]) == pytest.approx(gov_thresholds["x_total_open_risk"],
+                                                 abs=CENT)
+
+    # The same book, as a fraction of equity instead of dollars, and 1% of
+    # 100,000.00 is far under what is already open: still refused, and the
+    # detail says what the cap was a fraction of.
+    verdict = govern(proposal="credit_vertical_ok",
+                     account="composed_open_risk_saturated",
+                     thresholds=dict(gov_thresholds,
+                                     x_total_open_risk={"pct_of_equity": 0.01}))
+    fields = detail_fields(detail_for(verdict, "x_total_open_risk"))
+    assert checks_map(verdict)["x_total_open_risk"] is False
+    assert fields["cap_basis"] == "0.01_of_equity"
+    assert money(fields["cap"]) == pytest.approx(1000.00, abs=CENT)
+
+
+@requires_governor
+def test_gb_c_28_an_unknown_book_is_never_an_empty_one(gov_thresholds, proposals,
+                                                       account_states, clocks,
+                                                       gov_config_version):
+    """GB-C-28: no ledger-derived open_risk means the check FAILS, not passes.
+
+    "I do not know what is already on the book" must never resolve to "nothing
+    is". This is the same fail-closed discipline `churn_guard` and
+    `x_position_cap` hold, applied to the figure that bounds the account.
+    """
+    base = account_states["composed_flat"]
+    for ledger in ({"open_positions": {}, "recent_activity": {}},
+                   {"open_positions": {}, "recent_activity": {}, "open_risk": {}},
+                   {"open_positions": {}, "recent_activity": {},
+                    "open_risk": {"total": None}}):
+        account = dict(base, ledger=ledger)
+        verdict = run_governor(proposals["credit_vertical_ok"], account,
+                               clocks["open"], gov_thresholds, "approve",
+                               gov_config_version)
+        assert checks_map(verdict)["x_total_open_risk"] is False, ledger
+        assert "failing closed" in detail_for(verdict, "x_total_open_risk")
+
+    # And with no cap configured at all, the check passes and SAYS it is unbounded
+    # rather than passing silently — the same shape as x_max_expiry's null bound.
+    unconfigured = {k: v for k, v in gov_thresholds.items() if k != "x_total_open_risk"}
+    verdict = run_governor(proposals["credit_vertical_ok"], base, clocks["open"],
+                           unconfigured, "approve", gov_config_version)
+    assert checks_map(verdict)["x_total_open_risk"] is True
+    assert "x_total_open_risk=null" in detail_for(verdict, "x_total_open_risk")
+
+
+@requires_governor
+def test_gb_c_29_the_extensions_stay_extensions_and_the_arithmetic_is_public(
+    govern, gov_golden
+):
+    """GB-C-29: `x_total_open_risk` rides `x_`, and composers get the real function.
+
+    The core vocabulary is pinned by the seam and closed to this pod (3a). The
+    check is also only as good as the figure handed to it, so the arithmetic a
+    composer must use to build that figure is exported rather than reimplemented
+    at the call site — a second copy of the max-loss formula is exactly how an
+    aggregate ends up disagreeing with the checks it aggregates.
+    """
+    verdict = govern("credit_vertical_approved", golden=gov_golden)
+    rules = [c["rule"] for c in verdict["checks"]]
+    assert rules[:len(CORE_RULES)] == list(CORE_RULES), (
+        "core checks in seam order, extensions after"
+    )
+    assert "x_total_open_risk" in rules[len(CORE_RULES):]
+    assert set(CORE_RULES).isdisjoint({"x_total_open_risk"}), (
+        "adding a rule to the pinned core vocabulary is a seam change"
+    )
+
+    from conftest import GOVERNOR
+
+    assert GOVERNOR.computed_max_loss({
+        "structure": "vertical_spread", "qty": 2,
+        "legs": [{"action": "sell", "strike": 635.0, "limit_price": 6.30, "ratio_qty": 1},
+                 {"action": "buy", "strike": 630.0, "limit_price": 4.55, "ratio_qty": 1}],
+    }) == pytest.approx(650.00, abs=CENT), "width minus credit, times 100, times qty"
+    assert GOVERNOR.computed_max_loss({
+        "structure": "covered_call", "qty": 1,
+        "legs": [{"action": "sell", "strike": 660.0, "limit_price": 3.10, "ratio_qty": 1}],
+    }) is None, "2e: no standalone figure, and none is invented for an aggregate"
+    assert GOVERNOR.computed_max_loss({"structure": "vertical_spread", "qty": 1,
+                                       "legs": [{"action": "sideways"}]}) is None, (
+        "a proposal whose legs will not reconcile yields no figure, not a wrong one"
+    )

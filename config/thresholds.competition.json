@@ -1,0 +1,42 @@
+{
+  "_status": "SCORED-RUN CONFIG for the COMPETITION account PA3424LCNZBS. Three things here are DECIDED by teakeycee for this run: `max_expiry_date`, the 2% per-structure `max_loss_cap`, and the 10% `x_total_open_risk` portfolio cap. EVERYTHING ELSE IS STILL PROPOSED AND UNCALIBRATED, inherited verbatim from tests/fixtures/governor/thresholds.governor.PROPOSED.json — a sizing decision is not a calibration, and this file does not pretend the rest of it has been earned.",
+
+  "_note": "Loaded ONLY by a run that named `--env .env.competition`; config/profiles.json is what maps the env file to this config, that account number and data/ledger_competition.jsonl. The dev profile reads config/thresholds.governor.SCORED.json and is unaffected by anything in this file. The content hash of THIS file is the `config_version` recorded on every scored decision, so a verdict names the exact numbers it was made under and replays against them.",
+
+  "_sizing_rationale": "DECIDED 2026-09-02 by teakeycee, for the scored run only. 2% of equity per structure and 10% of equity across the whole book are HIS SIZING DECISION — a judgement about how much of a judged account to put at risk in a day and a half, not a calibrated risk model and not derived from anything. They are stated as fractions of equity rather than as dollars on purpose: a dollar cap is an absolute claim about a number that moves, and the belief actually held is proportional. The governor resolves them against `equity` in its composed account view at decision time, records the resolved figure, its basis and the equity it came from in the check detail, and FAILS CLOSED if it cannot resolve them. Everything else in this file stays calibration: PROPOSED, inherited, and not tuned to make this run's trades fit.",
+
+  "_max_expiry_rationale": "DECIDED 2026-09-02, identical to the dev config and for the identical reason. Scoring reads TOTAL ACCOUNT EQUITY at EOD Thursday 2026-09-03, with that day's exercises and assignments reflected (EVENT_FACTS.md, Alpaca FAQ, [primary] verified). A short premium position still open after the bound is scored at its MARK — unrealised and moving — rather than at the premium collected, so positions must resolve on or before the bound to convert premium into scored equity. On THIS account that is not a preference: every position it takes is built to expire inside the scored window. The governor rejects any leg expiring later (x_max_expiry) and the data layer's fetch window is clamped to it, so a late contract never enters the pipeline at all.",
+
+  "max_loss_cap": {
+    "_note": "Per structure, for the WHOLE order (multiplier and qty applied). A number would be dollars; these are fractions of total account equity, resolved at decision time. covered_call stays null: a covered call's downside is the share position it is written against, bounded by the coverage check (GB_INTERFACES.md 2e), not by a standalone max-loss figure — a percentage there would be a number invented to look like a limit.",
+    "covered_call": null,
+    "cash_secured_put": { "pct_of_equity": 0.02 },
+    "vertical_spread": { "pct_of_equity": 0.02 }
+  },
+
+  "_x_total_open_risk_rationale": "DECIDED 2026-09-02. The per-structure cap bounds one trade; this bounds the book. It sums the governor's OWN computed max loss over every ledger position bearing risk — submitted, partially filled or filled — adds the proposal's, and compares the total against 10% of equity. Five trades each inside their own 2% cap would otherwise reach the same place one 10% trade would, and on a scored account the number the judges read is the account's, not the trade's. Covered calls contribute nothing and are counted separately as unpriced_positions, because 2e says they have no standalone max-loss figure and inventing one for an aggregate is exactly the sort of made-up number the governor exists to refuse.",
+  "x_total_open_risk": { "pct_of_equity": 0.10 },
+
+  "net_reconcile_tolerance": 0.005,
+
+  "cash_floor_pct": 0.20,
+
+  "churn_window_seconds": 3600,
+  "min_hold_seconds": 7200,
+
+  "position_caps": {
+    "max_open_positions": 4,
+    "max_open_per_underlying": 2
+  },
+
+  "max_expiry_date": "2026-09-03",
+
+  "liquidity_window": {
+    "_status": "PROPOSED — not calibrated. Read by the HARNESS's proposal helper, not by the governor: it narrows which contracts a proposal may be built from, and narrowing the candidate set is a strategist's job, not a risk gate's. It lives in this file so that the content hash recorded as config_version covers the numbers the proposal was chosen under as well as the numbers it was judged under.",
+    "_note": "Applied AFTER the screener, which has already failed closed on null greeks, a missing bid, a missing ask, a stale quote or a missing snapshot (shape 6). This is the second, narrower pass: a contract can be perfectly well-quoted and still be a bad thing to sell one lot of into a 1-DTE book. require_two_sided_quote and min_open_interest apply to BOTH legs — you have to be able to trade the wing too — and the delta band applies to the SHORT leg only, because it is the leg that expresses where the position is placed relative to spot.",
+    "require_two_sided_quote": true,
+    "min_open_interest": 500,
+    "short_leg_abs_delta_min": 0.15,
+    "short_leg_abs_delta_max": 0.35
+  }
+}

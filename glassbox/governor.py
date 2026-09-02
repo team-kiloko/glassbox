@@ -31,6 +31,25 @@ Two arithmetic definitions the seam names but does not pin — `cash_floor` and
 `churn_guard` — are the governor lead's, marked PROPOSED, and written up in
 `tests/fixtures/governor/README.md` where the other pod can attack them.
 
+**Caps may be stated as a fraction of equity** (2026-09-02, for the scored run).
+A dollar cap is an absolute belief about a number that moves; "2% of equity" is
+the belief a human actually holds, and stating it directly means the config does
+not silently become wrong as the account's equity changes. Both forms are
+accepted — a number is dollars, `{"pct_of_equity": 0.02}` is resolved against
+`equity` in the composed account view — and the resolved figure, its basis and
+the equity it came from all land in the check's `detail`, so the record shows
+what the cap WAS at the moment of the decision. A percentage cap with no equity
+to resolve against **fails closed**: an unresolvable cap is not an absent one.
+
+**`x_total_open_risk` (PROPOSED, 3a extension).** Per-structure caps bound one
+trade; nothing bounded the book. This check sums the governor's own computed max
+loss across every ledger position that is bearing risk, adds the proposal's, and
+compares the total against a portfolio cap. It is not seam vocabulary, so it
+rides `x_` exactly as `x_position_cap` and `x_max_expiry` do. The open figure is
+ledger-derived and supplied by the composer; if it is absent the check fails
+closed, because "I do not know what is already on the book" must never resolve to
+"nothing is".
+
 As in the screener, **data quality is rejected and a schema violation raises**: a
 proposal whose numbers do not reconcile earns a verdict, while a caller who hands
 over the data layer's raw account state where the governor's composed view
@@ -43,7 +62,7 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 
-__all__ = ["govern", "CORE_RULES", "STRUCTURE_ENUM"]
+__all__ = ["govern", "CORE_RULES", "STRUCTURE_ENUM", "computed_max_loss"]
 
 #: The pinned core checks[] vocabulary (GB_INTERFACES.md 3a), in seam order.
 #: Renaming or removing one of these requires both humans. Extra checks this
@@ -124,16 +143,29 @@ def govern(proposal, account_state, clock_or_as_of, thresholds, mode, config_ver
                 f"not evaluated: {gate_failed} failed — risk math does not run on "
                 f"a proposal whose structure or arithmetic is not trustworthy",
             ))
+        # The portfolio check is risk-band arithmetic too: it needs this
+        # proposal's max loss, which the gate has just said cannot be trusted.
+        # It is appended after the x_ extensions below, so it is built here and
+        # held rather than appended out of order.
+        open_risk_check = _check(
+            "x_total_open_risk", False,
+            f"not evaluated: {gate_failed} failed — the book's total risk cannot "
+            f"be extended by a figure the governor has declared untrustworthy",
+        )
     else:
         max_loss = _computed_max_loss(proposal, computed_net)
-        checks.append(_check(*_check_max_loss_cap(proposal, max_loss, thresholds)))
+        checks.append(_check(*_check_max_loss_cap(proposal, max_loss, account, thresholds)))
         checks.append(_check(*_check_coverage(proposal, account, max_loss, computed_net)))
         checks.append(_check(*_check_cash_floor(proposal, account, computed_net, thresholds)))
+        open_risk_check = _check(
+            *_check_total_open_risk(proposal, account, max_loss, thresholds)
+        )
 
     checks.append(_check(*_check_churn(proposal, account, as_of, thresholds)))
     checks.append(_check(*_check_market_open(is_open)))
     checks.append(_check(*_check_position_cap(proposal, account, thresholds)))
     checks.append(_check(*_check_max_expiry(proposal, thresholds)))
+    checks.append(open_risk_check)
 
     approved = all(check["passed"] for check in checks)
     return {
@@ -143,6 +175,27 @@ def govern(proposal, account_state, clock_or_as_of, thresholds, mode, config_ver
         "checks": checks,
         "reason": _reason(approved, checks),
     }
+
+
+def computed_max_loss(proposal):
+    """The governor's own max-loss figure for a proposal, in dollars.
+
+    Public so that a composer building the ledger-derived `open_risk` block uses
+    THIS arithmetic on every position it counts, rather than trusting a figure
+    recorded next to the position or — worse — a strategist's claim. Derives the
+    net from the legs itself for the same reason.
+
+    Returns None for a covered call, which has no standalone max-loss figure
+    (2e), and None for a proposal whose legs will not reconcile into a net.
+    """
+    try:
+        net = _net_from_legs(proposal)
+    except ValueError:
+        return None
+    try:
+        return _computed_max_loss(proposal, net)
+    except (KeyError, TypeError, IndexError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -203,6 +256,10 @@ def _composed_account(account_state):
                 f"positions[{underlying}] has no 'reserved_shares': raw broker "
                 "state where the composed view belongs (A2 b)"
             )
+    # `equity` is PROPOSED and deliberately NOT required: only a percentage cap
+    # needs it, and that path fails closed on its own with a detail saying why.
+    # Requiring it here would turn a config choice into a caller error for every
+    # existing caller that states its caps in dollars.
     return account_state
 
 
@@ -323,6 +380,53 @@ def _check_net(proposal, thresholds):
 
 
 # ---------------------------------------------------------------------------
+# Money caps — dollars, or a fraction of equity
+# ---------------------------------------------------------------------------
+
+def _resolve_cap(spec, account, label):
+    """Resolve a configured cap into dollars.
+
+    Returns ``(cap, basis_tokens, failed_closed_reason)``.
+
+    * A number is dollars, and `basis_tokens` says so.
+    * ``{"pct_of_equity": f}`` is resolved against the composed view's `equity`.
+      A missing or non-numeric equity does NOT raise: the config is well-formed
+      and the account read is not, which is a data-quality rejection, so it
+      comes back as a reason to fail the check closed.
+    * Anything else is a malformed config, which is a caller error and raises —
+      laundering a bad config into a rejection would make it look like a
+      considered decision.
+    """
+    if spec is None:
+        return None, "", None
+    if _is_number(spec):
+        # No basis token: `cap=500.00` already says dollars, and adding a word
+        # to every detail a dollar cap has ever produced would rewrite the
+        # recorded reasoning of every decision made before this form existed.
+        return float(spec), "", None
+    if isinstance(spec, dict) and "pct_of_equity" in spec:
+        pct = spec["pct_of_equity"]
+        if not _is_number(pct) or pct <= 0:
+            raise ValueError(
+                f"{label}.pct_of_equity must be a positive number, got {pct!r}"
+            )
+        equity = account.get("equity")
+        if not _is_number(equity):
+            return None, f"cap_basis={pct:g}_of_equity equity=null", (
+                f"{label} is configured as {pct:g} of equity and the composed "
+                f"account view carries no numeric equity, so the cap cannot be "
+                f"resolved — an unresolvable cap is not an absent one, and this "
+                f"fails closed rather than passing unbounded"
+            )
+        return (round(pct * equity, 2),
+                f"cap_basis={pct:g}_of_equity equity={_money(equity)}", None)
+    raise ValueError(
+        f"{label} must be a number of dollars or {{'pct_of_equity': <fraction>}}, "
+        f"got {spec!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # max_loss_cap — the governor's own arithmetic
 # ---------------------------------------------------------------------------
 
@@ -353,24 +457,26 @@ def _computed_max_loss(proposal, net):
     return (width + net) * scale
 
 
-def _check_max_loss_cap(proposal, max_loss, thresholds):
+def _check_max_loss_cap(proposal, max_loss, account, thresholds):
     structure = proposal["structure"]
     caps = thresholds["max_loss_cap"]
     if structure not in caps:
         raise ValueError(f"thresholds.max_loss_cap has no entry for {structure!r}")
-    cap = caps[structure]
+    cap, basis, failed_closed = _resolve_cap(
+        caps[structure], account, f"max_loss_cap.{structure}"
+    )
     claimed = proposal.get("claimed_max_loss")
 
-    if max_loss is None or cap is None:
+    if max_loss is None or (cap is None and failed_closed is None):
         return "max_loss_cap", True, (
-            f"structure={structure} computed_max_loss=null cap=null — a covered "
-            f"call's downside is the share position it is written against, bounded "
-            f"by the coverage check (2e), not by a standalone max-loss cap"
+            f"structure={structure} computed_max_loss={_money(max_loss)} cap=null — a "
+            f"covered call's downside is the share position it is written against, "
+            f"bounded by the coverage check (2e), not by a standalone max-loss cap"
         )
 
     detail = (
         f"structure={structure} computed_max_loss={_money(max_loss)} vs "
-        f"cap={_money(cap)} claimed_max_loss={_money(claimed)}"
+        f"cap={_money(cap)}{_basis(basis)} claimed_max_loss={_money(claimed)}"
     )
     if _is_number(claimed):
         divergence = max_loss - claimed
@@ -381,6 +487,8 @@ def _check_max_loss_cap(proposal, max_loss, thresholds):
                 "divergence is recorded because a wrong claim is itself a finding"
             )
 
+    if failed_closed is not None:
+        return "max_loss_cap", False, detail + " — " + failed_closed
     if max_loss < 0:
         return "max_loss_cap", False, detail + (
             " — computed max loss is negative, which no defined-risk structure "
@@ -597,9 +705,78 @@ def _check_max_expiry(proposal, thresholds):
     return "x_max_expiry", True, detail
 
 
+def _check_total_open_risk(proposal, account, max_loss, thresholds):
+    """Portfolio-level risk cap. PROPOSED, and rides `x_` (3a).
+
+    Per-structure caps bound one trade. Four trades each inside their own cap
+    can still put the whole account at risk, and on a scored account the number
+    the judges read is the account's, not the trade's. So this sums the
+    governor's OWN computed max loss across every position the ledger says is
+    bearing risk, adds this proposal's, and compares the total against the cap.
+
+    The open figure is composed from the ledger and handed in — this module does
+    no I/O (property 3) — but it must be composed with :func:`computed_max_loss`,
+    not with anything a position claimed about itself.
+
+    A covered call contributes nothing here and says so: it has no standalone
+    max-loss figure (2e), and inventing one for an aggregate would be exactly
+    the kind of made-up number this component exists to refuse. Those positions
+    are counted separately as `unpriced_positions` so the reader can see that
+    the total is a total over what is *priceable*, not over everything.
+    """
+    spec = thresholds.get("x_total_open_risk")
+    if spec is None:
+        return "x_total_open_risk", True, (
+            "x_total_open_risk=null — no portfolio-level open-risk cap is "
+            "configured for this run"
+        )
+
+    cap, basis, failed_closed = _resolve_cap(spec, account, "x_total_open_risk")
+
+    ledger = account.get("ledger")
+    open_risk = ledger.get("open_risk") if isinstance(ledger, dict) else None
+    if not isinstance(open_risk, dict) or not _is_number(open_risk.get("total")):
+        return "x_total_open_risk", False, (
+            f"not evaluated: account_state carries no ledger-derived open_risk "
+            f"total, so the risk already on the book is unknown — failing closed "
+            f"rather than treating an unknown book as an empty one. "
+            f"cap={_money(cap)}{_basis(basis)}"
+        )
+
+    already = float(open_risk["total"])
+    unpriced = open_risk.get("unpriced_positions", 0)
+    counted = open_risk.get("counted_positions", 0)
+    proposed = max_loss if _is_number(max_loss) else 0.0
+    total = already + proposed
+
+    detail = (
+        f"open_risk_before={_money(already)} counted_positions={counted} "
+        f"unpriced_positions={unpriced} proposed_max_loss={_money(proposed)} "
+        f"total_open_risk={_money(total)} vs cap={_money(cap)}{_basis(basis)}"
+    )
+    if max_loss is None:
+        detail += (
+            " — the proposal is a covered call and contributes 0: it carries no "
+            "standalone max-loss figure (2e) and is bounded by coverage instead"
+        )
+    if failed_closed is not None:
+        return "x_total_open_risk", False, detail + " — " + failed_closed
+    return "x_total_open_risk", total <= cap, detail
+
+
 # ---------------------------------------------------------------------------
 # Small shared pieces
 # ---------------------------------------------------------------------------
+
+def _basis(basis):
+    """The cap's basis, as a leading-space suffix, or nothing at all.
+
+    A dollar cap adds no token: `cap=500.00` already says what it is, and a
+    percentage cap is the only one whose resolved figure needs its derivation
+    written beside it.
+    """
+    return f" {basis}" if basis else ""
+
 
 def _check(rule, passed, detail):
     return {"rule": rule, "passed": bool(passed), "detail": detail}

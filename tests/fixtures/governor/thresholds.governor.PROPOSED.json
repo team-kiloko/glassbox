@@ -1,26 +1,22 @@
 {
-  "_status": "PROPOSED — NOT calibrated, NOT signed off.",
+  "_status": "PROPOSED \u2014 NOT calibrated, NOT signed off.",
   "_note": "Per CLAUDE.md thresholds/tunables live in config, never hardcoded, and the CALLER loads this file and passes the mapping in (same discipline as the screener, GB_INTERFACES.md 6a). These are the values the governor golden verdicts were built against, chosen so each fixture sits unambiguously on one side of its threshold. They are NOT trading judgements.",
-
   "max_loss_cap": {
     "_note": "Per structure, in dollars, for the whole order (multiplier and qty applied). covered_call is null: a covered call's downside is the share position it is written against, bounded by the coverage check (GB_INTERFACES.md 2e), not by a standalone max-loss figure.",
     "covered_call": null,
-    "cash_secured_put": 62500.00,
-    "vertical_spread": 500.00
+    "cash_secured_put": 62500.0,
+    "vertical_spread": 500.0
   },
-
   "net_reconcile_tolerance": 0.005,
-
-  "cash_floor_pct": 0.20,
-
+  "cash_floor_pct": 0.2,
   "churn_window_seconds": 3600,
   "min_hold_seconds": 7200,
-
   "position_caps": {
     "max_open_positions": 4,
     "max_open_per_underlying": 2
   },
-
+  "_x_total_open_risk_note": "The SUITE'S REFERENCE portfolio cap, in dollars, not a trading judgement and not the scored-run value. Chosen exactly as every other number in this file is: high enough that every one of the 19 pre-existing cases sits on the side of it that it always sat on (the largest approved case carries 61,590.00 of computed max loss), and low enough that composed_open_risk_saturated sits unambiguously on the other. The percentage-of-equity form of this cap is exercised by GB-C-25/26 rather than by the golden, so that adding it did not require re-tuning 19 hand-authored verdicts. The scored value lives in config/thresholds.competition.json.",
+  "x_total_open_risk": 100000.0,
   "_max_expiry_note": "The SUITE'S REFERENCE BOUND, not the scored-run value. Every golden proposal expires 2026-09-18, and one (late_expiry_vertical) expires 2027-01-15, so this date is chosen exactly as every other number in this file is: so each fixture sits unambiguously on one side of it. It is NOT a trading judgement and NOT the scored-run bound. The DECIDED scored value lives in config/thresholds.governor.SCORED.json, which is the config a real run loads. This file is frozen golden reference data: changing a number in it retroactively invalidates 18 hand-authored verdicts, which is why the two are separate files rather than one shared tunable.",
   "max_expiry_date": "2026-12-31"
 }
