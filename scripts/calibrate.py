@@ -195,33 +195,88 @@ class Capture:
             ages.append(age)
             if symbol in near:
                 ages_near.append(age)
+        max_age = self.thresholds["quote_max_age_seconds"]
+        positive = [age for age in ages if age >= 0]
         record["quote_age_seconds"] = {
             "all": percentiles(ages),
             "near_the_money": percentiles(ages_near),
+            # The screener rejects a NEGATIVE age too, and correctly: a quote
+            # dated after the `as_of` that claims to precede it cannot be
+            # reconciled with the read. So the two failures are separated here,
+            # because they have completely different answers.
+            "negative_age": sum(1 for age in ages if age < 0),
+            "negative_age_near_the_money": sum(1 for age in ages_near if age < 0),
+            "non_negative_only": percentiles(positive),
+            "non_negative_only_near_the_money": percentiles(
+                [age for age in ages_near if age >= 0]),
             "no_parseable_quote": no_quote,
             "no_parseable_quote_near_the_money": no_quote_near,
-            "threshold_in_force": self.thresholds["quote_max_age_seconds"],
-        }
-        # What each candidate threshold WOULD have admitted, on this cycle's own
-        # quotes. The whole argument for a number, computed from observations.
-        record["would_admit"] = {
-            str(limit): {
-                "all": sum(1 for age in ages if 0 <= age <= limit),
-                "near_the_money": sum(1 for age in ages_near if 0 <= age <= limit),
-            }
-            for limit in (60, 300, 900, 1800, 3600, 7200, 21600, 86400)
+            "threshold_in_force": max_age,
         }
 
         # -- screener rejects, split by whether we would ever trade the strike --
         reasons, reasons_near = {}, {}
+        stale_only, stale_only_near = 0, 0
         for entry in rejected:
-            for reason in entry["reasons"]:
+            codes = set(entry["reasons"])
+            for reason in codes:
                 reasons[reason] = reasons.get(reason, 0) + 1
                 if entry["symbol"] in near:
                     reasons_near[reason] = reasons_near.get(reason, 0) + 1
-        record["reject_reasons"] = {"all": reasons, "near_the_money": reasons_near,
-                                    "rejected_total": len(rejected),
-                                    "accepted_total": len(accepted)}
+            if codes == {"stale_quote"}:
+                stale_only += 1
+                if entry["symbol"] in near:
+                    stale_only_near += 1
+        record["reject_reasons"] = {
+            "all": reasons, "near_the_money": reasons_near,
+            "rejected_total": len(rejected), "accepted_total": len(accepted),
+            # The number that says whether freshness is the BINDING constraint:
+            # contracts whose ONLY defect was the quote's age. Everything else
+            # rejected has a second reason that no freshness setting can fix.
+            "stale_quote_only": stale_only,
+            "stale_quote_only_near_the_money": stale_only_near,
+        }
+
+        # -- the two counterfactuals, computed per contract on this cycle -----
+        # (a) what a different quote_max_age_seconds would admit, and
+        # (b) what SHIFTING as_of forward by d seconds would admit — which is
+        #     what stamping the read at the moment it FINISHED would do
+        #     (dry_run.stamped: "a read is true as of when it finished"). Under
+        #     a shift of d, a quote's age becomes age + d.
+        # Both are reported as the count that would clear the WHOLE screener,
+        # not just the freshness test, because a contract with null greeks is
+        # not admitted by any amount of patience.
+        other_defects = {entry["symbol"] for entry in rejected
+                         if set(entry["reasons"]) - {"stale_quote"}}
+        ages_by_symbol = {}
+        for symbol in by_symbol:
+            age = quote_age(snapshots.get(symbol), as_of)
+            if age is not None:
+                ages_by_symbol[symbol] = age
+
+        def admitted(limit, shift):
+            total = near_count = 0
+            for symbol, age in ages_by_symbol.items():
+                if symbol in other_defects:
+                    continue
+                shifted = age + shift
+                if 0 <= shifted <= limit:
+                    total += 1
+                    if symbol in near:
+                        near_count += 1
+            return {"all": total, "near_the_money": near_count}
+
+        record["would_admit"] = {
+            "note": ("counts that would clear the WHOLE screener, not only the "
+                     "freshness test; contracts with any other reject reason are "
+                     "excluded because no freshness setting admits them"),
+            "by_max_age_seconds": {
+                str(limit): admitted(limit, 0)
+                for limit in (60, 300, 900, 1800, 3600, 7200, 21600, 86400)},
+            "by_as_of_shift_seconds_at_current_max_age": {
+                str(shift): admitted(max_age, shift)
+                for shift in (0, 1, 2, 3, 5, 10, 30)},
+        }
 
         # -- the liquidity window, per accepted contract, per rule ------------
         record["liquidity_window"] = self._window(accepted, snapshots, by_symbol, spot)
