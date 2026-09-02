@@ -16,6 +16,223 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 15:50 UTC - teakeycee - CLOSE
+
+- **SCORED ACCOUNT: UNCHANGED, AND UNTOUCHED THIS SESSION.** `PA3424LCNZBS`
+  holds **short 5x `SPY260903P00763000` / long 5x `SPY260903P00758000`** — a
+  763/758 put credit vertical, 5 wide, 5 lots across the two chains recorded in
+  the 15:30 block. Total computed max loss **2,067.00** against a **10,000.00**
+  (10% of equity) book cap. **Every leg expires 2026-09-03 by construction.**
+  **No order was placed on this account this session, no flatten, no experiment,
+  and no read of it beyond the ones already on its ledger.** It expires tomorrow
+  and resolves itself; there is nothing to do to it and nothing may be done.
+- **COMPETITION KEYS ARE UNLOADED.** `.env.competition` sits on teakeycee's box,
+  mode 600, with `ALPACA_API_KEY` and `ALPACA_SECRET_KEY` **empty**. Verified by
+  reading key NAMES and value LENGTHS only — no value was read into any output.
+  Loading them tomorrow is step 1 of the runbook and teakeycee's alone.
+- **Changed — seven commits.**
+  1. **`Governor: churn_guard sees filled chains; compose_account_view
+     promoted` (`a8a4216`).** The finding I left you in the 15:30 block, fixed.
+     **`compose_account_view` and `RISK_BEARING` are now public governor API**
+     (A2 b always assigned the composition to the governor; it lived in
+     `scripts/dry_run.py`, which is *how* the defect happened). `recent_activity`
+     is now composed over the **risk-bearing** set — `approved_pending`,
+     `submitted`, `partial_fill`, `filled` — so **a filled position holds its
+     underlying until a CLOSING follow-up (`expired`, `canceled`) is appended to
+     the chain.** There is no way to leave that set by doing nothing.
+     **Collateral reservations are UNCHANGED and still read the in-flight set
+     only:** a filled cash-secured put has already spent its collateral and the
+     raw `cash` reflects it. `scripts/dry_run.py` imports both rather than
+     defining them.
+     **The fixture is 2026-09-02's competition ledger, byte for byte**
+     (`tests/fixtures/governor/ledger_churn_case.jsonl`) — evidence, not a staged
+     case. **GB-C-31 re-decides the second scored proposal** against its own
+     recorded account state, clock and config, and asserts the verdict flips on
+     `churn_guard` **and on nothing else**, so the record of what every other
+     check said this morning goes on meaning what it says. GB-C-32 pins that a
+     closing follow-up is what releases an underlying (and that `partial_fill`
+     is not one); GB-C-33 pins the reservations that did *not* move; GB-C-34
+     pins that a `governor_rejected` root never blocks anything; GB-C-F09 holds
+     the fixture to being that day. **GB-C 41 -> 47.**
+     Note what this does NOT do: the two recorded verdicts stand exactly as
+     written. The ledger is append-only and this morning's decisions were
+     correct under the composition they were made with. **Under today's
+     composition the second one would be refused**, which is the point.
+  2. **`Dev ledger: close the lingering approved_pending root...` (`dd6ab90`).**
+     The other finding, closed. `20260902T150638Z-dbe83a9f71` was a no-submit
+     rehearsal whose root was written pre-submission (5a) and never followed up.
+     As of (1) that is not cosmetic: it would have gone on holding SPY open and
+     counting 414.00 against the dev book forever. A `canceled` follow-up was
+     **appended, never edited**, with `order`/`fill` null because no order ever
+     existed. All four dev roots are now terminal. `demo/ledger_sample.jsonl`
+     rebuilt through `scripts/scrub_ledger.py`, which refuses to write unless a
+     full rebuild is byte-identical to the incremental mirror.
+  3. **`GB-R: the session runner's contract suite, ahead of the runner`
+     (`198fbc6`)** — the suite first, strict-xfail, then (4) armed it. GB-R is
+     deliberately **not** about screening, governing or executing; it is about
+     what an UNATTENDED process does. 18 criteria: a whole cycle end to end; a
+     closed market that submits nothing, writes nothing and does not even fetch
+     the chain; a re-run that opens no second position; a cycle with nothing
+     approvable still writing a root that carries the whole `checks[]`; **churn
+     blocking stacking on consecutive cycles** — this morning's case at fifteen
+     minutes instead of fifty-five seconds, over a broker that FILLS; the
+     per-underlying cap holding after every cooldown has lapsed; total open risk
+     both **forcing the size down** (21 lots seeded, one lot approved, the book
+     stopping at the cap) and refusing outright when even one lot will not fit;
+     the identity guard on **every** cycle; the log line's contents; the stop
+     time; the PAUSE file; the double-raise halt; the no-retry identity halt;
+     and `--env` having no default in either entry point.
+  4. **`The session runner: run_cycle.py and run_session.py, GB-R armed`
+     (`0b497f3`).**
+     **`scripts/run_cycle.py`** runs ONE cycle and exits — identity, clock,
+     chain (clamped to `max_expiry_date`, read from the governor config rather
+     than restated), screen, candidates, composed view, govern, record, submit,
+     follow. A session is not a different program; it is this one called again.
+     It holds **no risk opinion**: the only two things it decides are whether a
+     cycle is worth spending, and both fail closed — a **closed market** ends the
+     cycle before the chain is fetched, and a **cycle already on the ledger is
+     not re-decided**. **At most one order per cycle**, because a cycle composes
+     one account view and acting on a second approval would be acting on a view
+     the first order invalidated.
+     **Idempotency is keyed on the CYCLE, not the proposal**, and it is worth
+     saying why: by the time a re-run has re-derived its proposal the ledger has
+     moved, the sizing search returns a different quantity, the content hash
+     differs and a proposal-keyed guard never fires. The re-run would then be
+     refused on `churn_guard` — correctly — but would have written a second root
+     to say so, and "correct by accident" is not a property to rely on with an
+     order at the end of it. Root ids are prefixed with the cycle's own second,
+     so a repeat is recognised from the ledger before anything is decided.
+     **`scripts/run_session.py`** is deliberately the least clever file in the
+     repo: call the cycle, print one line, sleep, repeat. What it adds is the
+     four answers to failures that only exist over time — a **required `--stop`**
+     with no default; a **PAUSE file** that suspends without killing and logs
+     every paused tick, so silence never means "paused"; a halt on **two
+     consecutive** raised cycles, reset by any success; and an **immediate halt
+     with no retry** on an account identity failure. Exit codes 0 / 3 / 4 so the
+     three endings are legible without parsing the log.
+     **`--env` is REQUIRED in both entry points.** `dry_run.py` defaults to
+     `.env` so reaching the scored account is something a human typed; a loop
+     cannot borrow that reasoning, because a default of any kind means a session
+     that ran six hours against whichever account it named.
+     `config/runner.PROPOSED.json` holds the loop's tunables — interval **900s**,
+     `max_consecutive_errors` **2**, the pause file, the order-follow window.
+     None is a risk limit; every one carries its reasoning. **GB-R-F01 asserts
+     the interval sits INSIDE `churn_window_seconds`**, so the loop can never be
+     what stops a position stacking — the governor is.
+  5. **`Runner: a --no-submit cycle closes its own chain` (`e5aa47d`)** — found
+     preparing the rehearsal. An unsent approval was landing at
+     `approved_pending`, i.e. exactly the state (2) had just cleaned up, and as
+     of (1) the second cycle of a two-cycle rehearsal would have been refused by
+     a position that does not exist. An unsent approval now closes itself with a
+     `canceled` follow-up; the root stands as written, carrying the real verdict.
+     GB-R-15, additive.
+  6. **`Runner: a cycle that proposes nothing says which test excluded
+     everything` (`63f798d`)** — found BY the rehearsal, which is what a
+     rehearsal is for. `candidates=0 skipped=no_candidates` is true and useless
+     at 15:00 on the one day that counts. The screener's reason counts and the
+     liquidity window's exclusion counts now ride the same line. GB-R-16,
+     additive.
+  7. **`RUNBOOK for Thursday's scored session` (`c8a7075`).**
+     `docs/RUNBOOK_thursday.md`: the standing rule; load the keys; four
+     read-only pre-flight checks (suites green, working tree **clean** so
+     `code_version` is not `-dirty`, the scored config's content hash unchanged,
+     the broker agreeing who it is, every chain terminal); the start command;
+     reading the log field by field; the PAUSE file; stop, verify **from the
+     ledger rather than the log**, rebuild the demo sample, **unload the keys**,
+     commit; and what to do on each halt. Stop is **19:45 UTC**, fifteen minutes
+     before the close, so anything the last cycle submits has time to fill
+     inside the scored window.
+- **DEV REHEARSAL: two cycles, one minute apart, `--no-submit`, exit 0.**
+  `run_session.py --env .env --stop 20:00 --cycles 2 --interval 60 --no-submit`
+  on `PA34K04ZYHYO`. **No order was sent** — teakeycee asked for a dry run and
+  the dev account is shared, so the executor was never reached.
+  ```
+  cycle=0001 as_of=2026-09-02T15:45:04.816304Z open=true screened=0/692  candidates=0 skipped=no_candidates screen_rejects=stale_quote:692,null_greeks:557,missing_bid:239 excluded=none
+  cycle=0002 as_of=2026-09-02T15:46:07.080274Z open=true screened=20/672 candidates=0 skipped=no_candidates screen_rejects=null_greeks:550,stale_quote:520,missing_bid:239 excluded=short_delta_band:10,short_open_interest:7
+  session=stop reason=max_cycles cycles=2 at=2026-09-02T15:46:08.587992Z
+  ```
+  **No ledger roots were written** — both cycles built no candidate, so there was
+  no decision to record. The loop, the interval, the clock gate, the identity
+  guard, the bounded stop and the clean exit all ran; the ONE step not exercised
+  live is submission, which is covered by GB-R-01/03/05 against a fake broker
+  and by two real filled orders this morning.
+- **A finding worth having before tomorrow, and it is about the market, not the
+  code.** The free **indicative** feed's 0/1-DTE SPY chain swings hard minute to
+  minute: at 15:45:04 **not one of 692 contracts** had a quote inside
+  `quote_max_age_seconds` (300); sixty-three seconds later twenty were fresh and
+  there was still no 5-wide pair whose short leg was both inside the 0.15–0.35
+  delta band and over 500 open interest. That is the screener and the liquidity
+  window **failing closed exactly as designed** — but it means Thursday may show
+  long runs of `candidates=0`, and it is why (6) exists. Widening the window is
+  teakeycee's decision with a reason attached, in a config that is otherwise
+  FROZEN, and never mid-session while orders are being judged under the hash it
+  currently names.
+- **Tests: 167 passed, 1 skipped, 0 xfailed, 0 xpassed.** GB-S 17, GB-C 47,
+  GB-L 27, GB-D 29 + 1 skipped (the opt-in live band), GB-E 29, GB-R 18. **No
+  assertion was weakened, no existing criterion was changed, and no threshold
+  was re-tuned.** Every GB-R criterion landed before the code it judges;
+  GB-R-15 and GB-R-16 are additions covering behaviour that did not exist when
+  the suite was written.
+- **Frozen:** `config/thresholds.competition.json` and `config/profiles.json`
+  for the duration of the event — a threshold change mid-event retroactively
+  changes what the recorded verdicts mean. The two open scored positions.
+  `tests/fixtures/governor/ledger_churn_case.jsonl` — it is a copy of a real
+  ledger and regenerating it would destroy the thing it proves.
+  **`GB_INTERFACES.md` was NOT touched in any of the seven commits.**
+- **Blocked:** nothing.
+- **LEADS RELEASED.** Governor, ledger and screener were mine per the seam's
+  lead table and **go back with this block**. I took no new lead: the data layer
+  and the executor are yours and neither was modified this session, and the
+  runner is new code in `scripts/`, which the lead table does not assign — it is
+  contract-covered by GB-R and is as much yours as mine.
+- **Attack next (Jhoosier):**
+  1. **THE MCP STRATEGIST PATH — here is exactly where it plugs in.** The seam
+     is one function in `scripts/run_cycle.py`:
+     ```python
+     build_candidates(*, accepted, snapshots, contracts_by_symbol, spot,
+                      governor_thresholds, run_governor, report=None)
+         -> list[proposal]     # seam shape 2, best first
+     ```
+     `accepted` is the screener's accepted list (shape 6, already shaped to drop
+     into shape 2 `legs[]`); `snapshots` is `{symbol: snapshot}`;
+     `contracts_by_symbol` carries `open_interest`; `spot` is an estimate for
+     strike selection only and **no decision depends on it**;
+     `governor_thresholds` is read ONLY for `liquidity_window`, because
+     narrowing a candidate set is a strategist's job and **nothing in there
+     reads a cap**; `run_governor` is `proposal -> verdict`, passed so a
+     rules-based builder can SIZE by asking the governor rather than computing a
+     cap a second time — **a strategist that does not size may ignore it
+     entirely.**
+     The caller governs what comes back and submits at most one per cycle.
+     **Replacing this function IS the integration.** Nothing downstream changes:
+     the governor recomputes every number it is handed and reads
+     `claimed_max_loss` only to record how wrong it was, so a proposal that
+     arrives from a language model is judged by exactly the same checks, on
+     exactly the same arithmetic, as the hand-authored stand-in there now. Set
+     `prompt_version` on the root entry when one exists — `_write_root` passes
+     `None` today with a comment saying why.
+  2. **Video and write-up assets. The hero artefacts are the PAIRED chains.**
+     `demo/ledger_competition_sample.jsonl` — 8 entries, both scored chains
+     complete, and each run wrote **one approved root and one deliberately-bad
+     rejected root under the same config hash, the same clock and the same
+     account state.** That pairing is the whole argument in one file: the
+     rejected one carries `computed_max_loss=152606.00 vs cap=62500.00` beside
+     `claimed_max_loss=250.00` and `claim_divergence`, so the governor visibly
+     refused on its own arithmetic and read the claim only to write down how
+     wrong it was. `replay_root` returns `matched=True` on the roots behind both
+     real positions. **A dashboard only if time remains** — it renders `x_`
+     checks generically and nothing depends on it existing.
+  3. **Attack the churn fix.** `min_hold` and the churn window now anchor on the
+     ROOT entry's `ts` — the decision time, which 5a requires to be written
+     before the order exists and which is therefore present on every
+     risk-bearing chain, including one that has not filled. A fill timestamp
+     would be seconds later and would exist on only some of them. I think that
+     is the right anchor and it is stated in `compose_account_view`'s docstring;
+     if you disagree, GB-C-30 is the criterion that pins it and it is one line
+     to move.
+
+---
+
 ### 2026-09-02 15:30 UTC - teakeycee - MID-DAY (scored account is LIVE)
 
 - **THE COMPETITION ACCOUNT `PA3424LCNZBS` IS NOW LIVE-SCORED AND HOLDS TWO
