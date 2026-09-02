@@ -908,3 +908,52 @@ def test_gb_r_14_the_account_is_chosen_by_an_explicit_env_and_never_defaulted():
     stop = next(a for a in S.build_parser()._actions
                 if "--stop" in (a.option_strings or []))
     assert stop.required is True
+
+
+@requires_runner
+def test_gb_r_15_a_rehearsal_leaves_no_phantom_position(runner_chain, tmp_path,
+                                                        broker_responses):
+    """GB-R-15: `--no-submit` approves, records, sends nothing, and closes the chain.
+
+    A rehearsal that left its approved roots at `approved_pending` would leave
+    positions that do not exist on the book. As of the churn fix a risk-bearing
+    chain holds its underlying open and counts against total open risk, so the
+    very next cycle of the same rehearsal would be refused by a phantom — and
+    every number after it would be about that phantom rather than the account.
+
+    The root still carries the real verdict the governor really reached. Only
+    the follow-up says nothing was sent.
+    """
+    import run_cycle as R
+
+    from glassbox import ledger as ledger_mod
+
+    venue, broker = venue_for(runner_chain), broker_for(broker_responses)
+    context = make_context(tmp_path, venue, broker, submit=False)
+
+    first = R.run_cycle(context, cycle_id="0001", now=OPEN_AT)
+    assert first["approved"] == 1
+    assert first["order_id"] is None
+    assert first["order_status"] == "canceled_not_sent"
+    assert broker.submitted == [], "a rehearsal reaches no wire"
+
+    entries = context.ledger.read_entries()
+    root = ledger_mod.list_roots(entries)[0]
+    assert root["status"] == "approved_pending", "the decision stands as it was made"
+    assert root["verdict"]["approved"] is True
+    assert ledger_mod.current_status(entries, root["id"]) == ("canceled", True)
+    assert [e["status"] for e in ledger_mod.fold_chain(entries, root["id"])["entries"]] \
+        == ["approved_pending", "canceled"]
+
+    # And the next cycle sees a flat book rather than a position nobody holds.
+    venue.as_of = OPEN_AT + timedelta(seconds=900)
+    second = R.run_cycle(context, cycle_id="0002", now=venue.as_of)
+    assert second["approved"] == 1, (
+        "an unsent order must not block the next cycle: churn, the position cap "
+        "and total open risk all read a book this rehearsal never changed"
+    )
+    assert second["rejections"] == []
+    view = [r for r in ledger_mod.list_roots(context.ledger.read_entries())
+            if r["id"] != root["id"]][0]["snapshot"]["account_state"]
+    assert view["ledger"]["open_positions"] == {}
+    assert view["ledger"]["open_risk"]["total"] == 0.0

@@ -389,6 +389,8 @@ def run_cycle(context, *, cycle_id, now):
         result["approved"] += 1
         if context.submit:
             _submit_and_follow(context, root, result, now=now)
+        else:
+            _close_unsent(context, root, result, now=now)
         # At most one order per cycle: the view the next candidate was governed
         # against is the view this order has just invalidated.
         break
@@ -419,6 +421,28 @@ def _write_root(context, *, ts, as_of, proposal, verdict, snapshot, ident):
         snapshot=snapshot, proposal=proposal, verdict=verdict,
     )
     return context.record(entry)
+
+
+def _close_unsent(context, root, result, *, now):
+    """A rehearsal approved an order and did not send it. Say so on the chain.
+
+    Without this, `--no-submit` leaves an `approved_pending` root: in flight
+    forever, for an order that was never placed and is not coming. That is not
+    untidiness — as of the churn fix, a chain in the risk-bearing set holds its
+    underlying open and counts against the book's open risk, so the very next
+    cycle of the same rehearsal would be refused by a position that does not
+    exist, and every number after it would be about a phantom.
+
+    Appended, never edited: the root stays exactly as written, carrying the real
+    verdict the governor really reached, and a follow-up records that nothing
+    was sent. `order` and `fill` are null because no order ever existed.
+    """
+    context.record(context.ledger.append_follow_up(
+        id=f"{root['id']}+01-canceled", root_id=root["id"], ts=now,
+        status="canceled", order=None, fill=None,
+    ))
+    result["order_status"] = "canceled_not_sent"
+    return result
 
 
 def _submit_and_follow(context, root, result, *, now):
@@ -508,7 +532,7 @@ def format_cycle_line(result):
     elif result["rejections"]:
         parts.append("rejected_on=" + ",".join(result["rejections"]))
     elif result["approved"]:
-        parts.append("recorded=approved_pending no_submit")
+        parts.append("no_submit=approved_then_canceled_unsent")
     return " ".join(parts)
 
 
