@@ -16,6 +16,74 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 16:20 UTC - teakeycee - ADDENDUM (calibration; one real bug found)
+
+Short block. The CLOSE below still stands; this adds one document and one code
+fix, and **changes no threshold and no config file**.
+
+- **`docs/CALIBRATION_thursday.md` exists.** Read it before 13:30 UTC tomorrow.
+  It is a measured funnel capture against the DEV account — 10 cycles before a
+  fix, 8 after, `--no-submit` throughout, **no order sent and the scored account
+  never touched** — with a PROPOSED revision to
+  `config/thresholds.competition.json` that **proposes nothing**, every number
+  defended by evidence, and a ranked list of optional changes if teakeycee
+  decides he wants more candidate flow. **Nothing in it has been applied.** He
+  decides in the morning and applies it before the session, never mid-session.
+- **It found a real defect, and it was mine, from yesterday.** `scripts/run_cycle.py`
+  resolved `as_of` from the clock read at the START of a cycle and then spent
+  1.4–2.6 seconds fetching seven pages of chain. Every quote that updated during
+  that window was stamped AFTER the cycle's own `as_of`, and the screener rejects
+  a quote it cannot reconcile with the read that claims to precede it —
+  correctly. So the cycle was throwing away the FRESHEST quotes in the chain.
+  **`scripts/dry_run.py` has always re-read the clock after the fetch and its
+  `stamped()` docstring describes this exact failure**; the cycle runner did not.
+  Fixed in **`3c62069` — `Runner: resolve as_of after the read (GB-R-18)`**, using
+  dry_run's own `stamped()`. GB-R 18 -> 19; **169 passed, 1 skipped**.
+- **The numbers, because they are the argument.** Before: **zero candidates
+  across ten cycles**; 215–611 of 692 contracts rejected as `stale_quote` and
+  **100% of those were negative-age**, not old. The counterfactual is **flat at
+  60s, 300s, 900s, 3600s, 21600s and 86400s** — *no value of
+  `quote_max_age_seconds` would have admitted one extra contract.* After:
+  **negative ages zero, `stale_quote` absent entirely, 140–154 accepted, 3
+  complete 5-wide pairs, and one governed APPROVED candidate on every one of 8
+  cycles** — `SPY260903P00763000 / P00758000` at 0.75–0.84 credit, the same
+  structure the scored account already holds.
+- **Answers to the two calibration questions.** (1) `quote_max_age_seconds`
+  needs no change: near-the-money quote ages are **p50 ≈ 1.1s, p100 ≈ 13.5s at
+  the very worst tick**, against a 300s threshold. (2) The OI floor and delta
+  band are **not** starving candidates — they narrow 146 accepted to 51 over the
+  OI floor to 7 in the band to 3 complete pairs to 1 candidate, every cycle, and
+  the long wing is never the constraint. A 16-point band sweep is in the doc;
+  fifteen of the sixteen settings produce at least one pair.
+- **The real ceiling is `null_greeks`: a stable ~546 of 692 contracts, and
+  ~106 of the 184 within 3% of spot.** Structural on the indicative feed,
+  identical before and after, and **no threshold touches it.**
+  `require_complete_greeks` stays `true` — the delta band is evaluated on a delta
+  that would otherwise not exist.
+- **New, both measurement-only:** `scripts/calibrate.py` (drives the REAL loop
+  with `submit=False` forced on, not a flag, and writes the funnel to a
+  gitignored JSONL) and `scripts/summarize_calibration.py` (offline, re-runnable
+  against the file). `RunContext.observer` is the hook they attach to — **GB-R-17
+  pins that it cannot steer**: same verdict, same root ids, ledger identical
+  field for field, byte-identical order payload with and without it.
+- **DEV account: still flat of anything new, and the ledger is all-terminal.**
+  23 entries, 12 roots, **zero non-terminal**. The 8 post-fix cycles each wrote
+  an `approved_pending` root and closed it with a `canceled` follow-up, because a
+  `--no-submit` approval that stayed in flight would be a phantom position
+  (`e5aa47d`). `demo/ledger_sample.jsonl` rebuilt and verified byte-identical
+  through `scripts/scrub_ledger.py`.
+- **Frozen, unchanged:** `config/thresholds.competition.json` — **its content
+  hash `sha256:0066384c…` is the `config_version` on this morning's two live
+  scored verdicts, and changing the file retroactively changes what they name.**
+  `config/profiles.json`. `GB_INTERFACES.md` untouched.
+- **Attack next (Jhoosier), one addition to the list below:** if the MCP
+  strategist lands, `build_candidates` is handed the SCREENED set — so
+  everything in §1 and §4 of the calibration doc is the universe it will see too.
+  A strategist proposing off a 0/1-DTE SPY chain has ~146 fully-quoted contracts
+  to work with, not 692, and ~78 of them near the money.
+
+---
+
 ### 2026-09-02 15:50 UTC - teakeycee - CLOSE
 
 - **SCORED ACCOUNT: UNCHANGED, AND UNTOUCHED THIS SESSION.** `PA3424LCNZBS`

@@ -379,6 +379,7 @@ class Capture:
         return {
             "configured": True,
             "settings": {k: v for k, v in window.items() if not k.startswith("_")},
+            "sweep": self._sweep(accepted, snapshots, by_symbol, spot, window),
             "short_leg_excluded_by": short_out,
             "short_leg_excluded_by_near_the_money": short_out_near,
             "long_leg_excluded_by": long_out,
@@ -393,6 +394,63 @@ class Capture:
             "accepted_over_oi_floor": sum(
                 1 for oi in interest if oi >= window["min_open_interest"]),
         }
+
+
+    def _sweep(self, accepted, snapshots, by_symbol, spot, window):
+        """What OTHER delta bands and open-interest floors would admit.
+
+        The question "are the bands what is starving candidates?" cannot be
+        answered by the counts at the setting in force — those say what the
+        current band did, not whether a different one would have done better. So
+        the same pair search runs across a grid, on this cycle's own accepted
+        set, and reports viable short legs and COMPLETE pairs at each point.
+
+        Complete pairs is the number that matters. A band that admits forty short
+        legs and no wings has not helped.
+        """
+        puts = [c for c in accepted if c["option_type"] == "put"
+                and (spot is None or c["strike"] < spot)]
+        by_key = {(c["expiry"], c["strike"]): c for c in puts}
+
+        def facts(contract):
+            greeks = (snapshots.get(contract["symbol"]) or {}).get("greeks") or {}
+            delta = greeks.get("delta")
+            raw = (by_symbol.get(contract["symbol"]) or {}).get("open_interest")
+            try:
+                interest = int(float(raw))
+            except (TypeError, ValueError):
+                interest = None
+            two_sided = True
+            if window["require_two_sided_quote"]:
+                quote = quote_of(snapshots, contract["symbol"])
+                bid, ask = quote.get("bp"), quote.get("ap")
+                two_sided = (isinstance(bid, (int, float)) and bid > 0
+                             and isinstance(ask, (int, float)) and ask > 0
+                             and ask >= bid)
+            has_delta = isinstance(delta, (int, float)) and not isinstance(delta, bool)
+            return (abs(delta) if has_delta else None), interest, two_sided
+
+        table = {c["symbol"]: facts(c) for c in accepted}
+        out = {}
+        for lo, hi in ((0.10, 0.40), (0.12, 0.38), (0.15, 0.35), (0.20, 0.30)):
+            for floor in (100, 250, 500, 1000):
+                shorts, pairs = 0, 0
+                for short in puts:
+                    delta, interest, two_sided = table[short["symbol"]]
+                    if delta is None or not (lo <= delta <= hi):
+                        continue
+                    if interest is None or interest < floor or not two_sided:
+                        continue
+                    shorts += 1
+                    wing = by_key.get((short["expiry"], short["strike"] - WIDTH))
+                    if wing is None:
+                        continue
+                    _wd, w_interest, w_two_sided = table[wing["symbol"]]
+                    if w_interest is not None and w_interest >= floor and w_two_sided:
+                        pairs += 1
+                out[f"delta_{lo}_{hi}__oi_{floor}"] = {"short_legs": shorts,
+                                                       "complete_pairs": pairs}
+        return out
 
 
 def build_parser():
