@@ -657,3 +657,127 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if "live" in item.keywords:
             item.add_marker(skip)
+
+
+# ---------------------------------------------------------------------------
+# GB-E — executor
+# ---------------------------------------------------------------------------
+
+EXEC_FIXTURES = FIXTURES / "executor"
+
+_EXECUTOR_CANDIDATES = ("glassbox.executor", "executor")
+
+EXECUTOR, EXECUTOR_MISSING_REASON = _import_module(_EXECUTOR_CANDIDATES, "Executor")
+EXECUTOR_MISSING = EXECUTOR is None
+
+requires_executor = pytest.mark.xfail(
+    EXECUTOR_MISSING,
+    reason=f"executor has not landed yet: {EXECUTOR_MISSING_REASON}",
+    strict=True,
+)
+
+#: Seam 4b, opening-only for this event. `buy_to_close` / `sell_to_close` are
+#: RESERVED vocabulary and this pipeline never emits them.
+POSITION_INTENTS = {"buy": "buy_to_open", "sell": "sell_to_open"}
+CLOSING_INTENTS = ("buy_to_close", "sell_to_close")
+
+
+@pytest.fixture(scope="session")
+def broker_responses():
+    with (EXEC_FIXTURES / "broker_responses.HAND.json").open() as fh:
+        return json.load(fh)
+
+
+class FakeTransport:
+    """A broker that never existed.
+
+    Records every submission verbatim and serves canned bodies built to Alpaca's
+    order shape. It is the only transport GB-E has: no test in this suite can
+    reach a venue, and the executor's own code path is identical either way,
+    because the real transport implements the same two methods.
+    """
+
+    def __init__(self, responses, status="accepted"):
+        self.responses = responses
+        self.status = status
+        self.submitted = []          # payloads, in submission order
+        self.lookups = []            # client_order_ids asked about
+        self.orders = {}             # client_order_id -> broker order record
+
+    def submit_order(self, payload):
+        self.submitted.append(json.loads(json.dumps(payload)))
+        client_order_id = payload["client_order_id"]
+        if client_order_id in self.orders:
+            # What Alpaca does with a repeated client_order_id, and the whole
+            # reason the id is derived from the ledger root (shape 4).
+            from glassbox.executor import DuplicateOrder
+
+            raise DuplicateOrder(client_order_id)
+        self.orders[client_order_id] = self._body(payload, self.status)
+        return self.orders[client_order_id]
+
+    def get_order_by_client_id(self, client_order_id):
+        self.lookups.append(client_order_id)
+        return self.orders.get(client_order_id)
+
+    # -- helpers for tests -------------------------------------------------
+
+    def seed(self, client_order_id, status):
+        """Pretend an order already exists at the broker under this id."""
+        body = json.loads(json.dumps(self.responses[status]))
+        body["client_order_id"] = client_order_id
+        self.orders[client_order_id] = body
+        return body
+
+    def _body(self, payload, status):
+        body = json.loads(json.dumps(self.responses[status]))
+        body["client_order_id"] = payload["client_order_id"]
+        body["qty"] = str(payload["qty"])
+        body["limit_price"] = str(payload["limit_price"])
+        body["order_class"] = payload.get("order_class", "")
+        return body
+
+
+class RefusingTransport:
+    """A transport that fails the test if it is ever reached.
+
+    Used where the executor must stop BEFORE the wire — an unapproved verdict, a
+    missing order-id prefix, a non-paper URL. "It raised" is a weaker claim than
+    "it raised and nothing was sent".
+    """
+
+    def __init__(self):
+        self.submitted = []
+
+    def submit_order(self, payload):
+        raise AssertionError(
+            f"the executor reached the wire when it must not have: {payload!r}"
+        )
+
+    def get_order_by_client_id(self, client_order_id):
+        raise AssertionError("the executor reached the wire when it must not have")
+
+
+@pytest.fixture()
+def approved_roots(entries):
+    """The GB-L golden ROOT entries that carry an approved verdict.
+
+    Reused deliberately rather than re-authored: these are real decisions made by
+    the real governor and already cross-checked against the GB-C golden checks
+    map. The executor's input is a root ledger entry, so the ledger's goldens are
+    exactly the right fixtures, and a proposal that GB-C says is approvable is
+    the only kind the executor should ever see.
+    """
+    return {
+        entry["proposal"]["structure"]: entry
+        for entry in entries
+        if entry["root_id"] is None and entry["verdict"]["approved"]
+    }
+
+
+@pytest.fixture()
+def rejected_root(entries):
+    for entry in entries:
+        if entry["root_id"] is None and not entry["verdict"]["approved"]:
+            return entry
+    raise AssertionError("the ledger goldens carry no rejected root")
