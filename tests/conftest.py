@@ -1021,6 +1021,29 @@ class FakeBroker(FakeTransport):
         return body
 
 
+#: The order-id prefix GB-R's fake orders carry. `client_order_id` is
+#: `ORDER_ID_PREFIX + the root entry id` (shape 4) and the prefix is per-box
+#: configuration read from the environment — never a literal in tracked code —
+#: so a suite that drives the executor has to supply one. It is set on
+#: `os.environ` rather than passed in because that is where a real run's
+#: `load_dotenv` puts it, and the runner reads it from exactly there.
+GB_R_ORDER_ID_PREFIX = "gbr-"
+
+
+@pytest.fixture(autouse=True)
+def _gb_r_order_id_prefix(request, monkeypatch):
+    """Give the GB-R suite, and only it, a per-box order-id prefix.
+
+    Scoped to that one module deliberately: GB-E has cases that assert a MISSING
+    prefix is a refusal, and a suite-wide default would quietly satisfy them.
+    """
+    if request.node.nodeid.split("::")[0].endswith("test_runner_contract.py"):
+        monkeypatch.setenv(_ORDER_ID_PREFIX_ENV_NAME, GB_R_ORDER_ID_PREFIX)
+
+
+_ORDER_ID_PREFIX_ENV_NAME = "ORDER_ID_PREFIX"
+
+
 class BlindBroker(FakeBroker):
     """A broker that cannot say who it is. 'I could not check' is not 'it is fine'."""
 
