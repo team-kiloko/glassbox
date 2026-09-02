@@ -29,6 +29,10 @@ in HANDOFF_PROTOCOL.md and are binding.
   puts, defined-risk verticals; iron condors only as two verticals). The order
   builder must be unable to express a naked short option. The governor computes
   max loss independently; it never trusts a strategist-supplied figure.
+- The seam of record is GB_INTERFACES.md (SIGNED and IN FORCE 2026-09-02;
+  changes require both humans). Its pinned core governor checks[] vocabulary is
+  structure_valid, net_reconciles, max_loss_cap, coverage, cash_floor,
+  churn_guard, market_open; extra checks go under an x_ prefix.
 - Paper trading only. Trading base URL must contain "paper". If code or config
   ever points elsewhere, stop and raise it.
 
