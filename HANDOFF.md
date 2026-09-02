@@ -16,6 +16,116 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-02 11:27 UTC - teakeycee - CLOSE
+- **Changed:** **Three modules landed, three suites armed: 75 passed, 0 xfailed,
+  0 xpassed** — GB-S 17, GB-C 31, GB-L 27 (7 fixture-integrity + 20 behaviour).
+  Two commits this session, on top of the four in my 10:30 and 10:55 blocks.
+  (1) `GB-L ledger contract suite + golden entries` — `tests/fixtures/ledger/`
+  with **`entries.jsonl`: 18 entries, 6 chains** per shape 5 and 5a (A: root →
+  submitted → partial_fill → filled; B: a governor rejection, complete and
+  terminal at the root; C: root → submitted → broker_rejected → **correction**;
+  D: canceled; E: expired with `prompt_version` **null**, hand-authored, no LLM;
+  F: **still in flight** at partial_fill) and `expected_chains.json` carrying the
+  golden fold. The embedded proposals, account states, clocks and verdicts are
+  **the governor's own golden fixtures**, so every entry is a real decision by
+  the real governor — and **GB-L-F05 cross-checks each embedded verdict against
+  the GB-C hand-authored `checks` map**, which is where the circularity stops.
+  (2) `Ledger writer + replay land, GB-L armed and green` —
+  **`glassbox/ledger.py`**: writer (`Ledger(path)` with `append_root`,
+  `append_follow_up`, `append_correction`), reader (`load`, `list_roots`,
+  `fold_chain`, `current_status`, `is_terminal`), `client_order_id`, and the
+  **replay helper**. **No new dependencies.**
+  **Append-only is enforced by the API:** `update()` and `delete()` exist and
+  raise `AppendOnlyError`, so the rule is discoverable where someone reaches for
+  it. A correction appends and **the corrected entry stays in the file, byte for
+  byte**. **The writer holds no clock** — `ts` is passed in — and storage is a
+  caller-supplied JSONL path with no module state and no default location.
+  **Chains fold by `root_id`, never by adjacency**: the golden file interleaves
+  them on purpose, so a fold that walks forward from a root until it meets the
+  next root gets four of six chains wrong. **`partial_fill` is non-terminal.**
+  **Replay is the point of the module, and it is the provenance claim made
+  executable.** `replay_root` re-derives a root entry's verdict by re-running the
+  governor on **the entry's own embedded proposal, account state and clock** —
+  nothing outside the entry is consulted except the config it names, and
+  replaying under a different `config_version` **raises** rather than passing a
+  match off as a reproduction. All six golden decisions replay identically. **A
+  verdict flipped to approved does not, and neither does a doctored input**
+  (GB-L-16) — a replay that cannot fail proves nothing. Serialization is
+  deterministic (shape 5 key order, sorted nested keys, ISO-8601 UTC, one entry
+  per line) and GB-L-11 re-serializes every golden entry and requires the bytes
+  back, so a diff of a ledger means a change in the facts.
+  Two defects the suite caught and **the module** fixed: `append_root` now states
+  every shape 5 field including `order`/`fill`, and a docstring that spelled out
+  an order-id prefix literal was reworded — GB-L-07 greps the package for exactly
+  that. One scaffolding fix I stopped and cleared with you first: the GB-L arming
+  probe named a module-level `append_root` no test uses; it now names `Ledger`.
+  No assertion changed anywhere. **`GB_INTERFACES.md` was NOT touched.** No
+  orders; dev account untouched and flat.
+- **Next on my side: an end-to-end DRY-RUN HARNESS** — a hand-authored proposal →
+  screener → governor → ledger, against the **dev** account, with **no strategist
+  and no UX required**. Every piece it needs now exists and is armed. That gives
+  us a **governed trade path that actually runs**, so the competition account has
+  one ready for **Thursday's open** rather than a pipeline that has only ever been
+  exercised by tests.
+- **A proposal about tonight's freeze — please read this one.** I think we should
+  treat it as a **FEATURE freeze, not a wiring freeze.** Nothing new gets
+  proposed after tonight; **integration continues**, because right now the three
+  modules I own have never run against anything but fixtures, and the two you own
+  have never met them. Freezing the wiring tonight freezes us at "three green
+  suites and no trade", which is the wrong artefact to submit on Sep 4. If you
+  disagree, say so in your next block and I will hold — but I would rather spend
+  Wednesday connecting what exists than adding to it.
+- **Frozen:** **`GB_INTERFACES.md` — both-humans rule, unchanged.** **All three
+  threshold/config files remain PROPOSED and uncalibrated**:
+  `thresholds.PROPOSED.json` (screener), `thresholds.governor.PROPOSED.json`
+  (governor), and the golden `config_version` the ledger fixtures carry. The
+  pinned 3a core `checks[]` vocabulary and the shape 5 status vocabulary are both
+  closed to me: the ledger's writer **refuses** a status it was not given, so the
+  vocabulary cannot grow by accident in a crunch.
+- **Seam amendments outstanding, all PROPOSED, none applied — carried forward and
+  added to:** from 10:55, (1) `malformed_record` as a sixth screener reason code,
+  (2) refresh the stale shape-6 blockquote, (3) print the governor's
+  ledger-derived `ledger` block in 2b's composed view. New tonight, all in shape
+  5: (4) **`approved_pending` as a root status** — 5a requires the root written
+  **pre-submission** and the vocabulary has no value for "approved, not yet
+  submitted"; every value it does have describes a rejection or a state an order
+  is already in. (5) **`corrects` as a nullable field on every entry** — the seam
+  says a correction "references the id of the entry it corrects" but gives it no
+  field, and `root_id` cannot carry it because that is the fold key. (6) **the
+  composition of `snapshot`** as `{account_state, clock}`, which shape 5 leaves as
+  an open object — this is exactly what replay needs, and without pinning it the
+  provenance claim is not checkable. All six are one batch for one conversation.
+- **Blocked:** Nothing on my side.
+- **Attack next:** **Jhoosier — order matters tonight, so here it is explicitly.**
+  **FIRST, the data layer and the executor.** They are the **two pieces between my
+  three modules and a real order**, and nothing else you could build changes that.
+  Data layer: shape 6 inputs and **shape 2b RAW broker state** (raw only — the
+  governor now **raises** if handed a raw state where its composed view belongs,
+  GB-C-21, so A2 (b) is enforced from both ends), plus `clock()` and `calendar()`
+  feeding `market_open`. Executor: **4a/4b** — single-leg `covered_call` /
+  `cash_secured_put` are **not `mleg`**, wire `limit_price = abs(net_debit_credit)`
+  with direction from `side`, **never a negative limit on a single-leg order**;
+  `position_intent` on every leg, opening-only; **`client_order_id` = your
+  `ORDER_ID_PREFIX` + the ROOT ledger entry id** — `glassbox.ledger.client_order_id()`
+  builds it, reads the env var, and **raises if unset**, so import it rather than
+  formatting the string yourself.
+  **SECOND, the dashboard reads the ledger JSONL directly** — `load()` then
+  `fold_chain()` per root, and render `current_status()`; **fold by `root_id`, and
+  do not treat `partial_fill` as an end state.** `tests/fixtures/ledger/entries.jsonl`
+  is a complete, realistic file you can build against right now with no data layer
+  and no broker.
+  **THIRD, and deliberately last: the strategist and the NL UX.** They are the
+  opener and they matter for the video — but **the ledger and one governed trade
+  are the proof**, and a demo that shows a beautiful intent box in front of a
+  pipeline that has never placed an order is the version of this project that
+  loses. When you get to the strategist, **attack the governor with adversarial
+  proposals** — still the highest-value fixtures either of us can write, and still
+  your lane. The gaps I know about in my own coverage: a `claimed_max_loss`
+  *higher* than the computed figure, mismatched-expiry or multi-underlying legs,
+  and a credit vertical priced wider than its own wings.
+
+---
+
 ### 2026-09-02 10:55 UTC - teakeycee - CLOSE (freeze day)
 - **Changed:** **Both of my modules are landed with their suites armed and green:
   48 passed, 0 xfailed, 0 xpassed — GB-S 17 (4 fixture-integrity + 13 behaviour),
