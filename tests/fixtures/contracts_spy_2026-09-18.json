@@ -151,6 +151,26 @@
       "open_interest_date": "2026-08-27",
       "close_price": "0.71",
       "close_price_date": "2026-08-27"
+    },
+    {
+      "id": "7b52cf89-4e6d-43a0-9c27-b5f9160de31b",
+      "symbol": "SPY260918C00760000",
+      "name": "SPY Sep 18 2026 760 Call",
+      "status": "active",
+      "tradable": true,
+      "expiration_date": "2026-09-18",
+      "root_symbol": "SPY",
+      "underlying_symbol": "SPY",
+      "underlying_asset_id": "11111111-2222-3333-4444-555555555555",
+      "type": "call",
+      "style": "american",
+      "strike_price": "760",
+      "multiplier": "100",
+      "size": "100",
+      "open_interest": "127",
+      "open_interest_date": "2026-08-27",
+      "close_price": "0.05",
+      "close_price_date": "2026-08-27"
     }
   ],
   "next_page_token": null

@@ -11,8 +11,8 @@ Two bands:
   GB-S-**   screener behaviour — xfail until the screener module lands, then
             runs for real automatically (see conftest.requires_screener).
 
-The screener interface these tests call is PROPOSED and documented in
-conftest.py. It is NOT in GB_INTERFACES.md, which is frozen pre-sign-off.
+The screener interface these tests call is GB_INTERFACES.md shape 6, SIGNED and
+IN FORCE as of 2026-09-02. The seam is the authority; conftest.py restates it.
 """
 
 from __future__ import annotations
@@ -22,6 +22,7 @@ import re
 import pytest
 
 from conftest import (
+    has_ask,
     has_bid,
     has_complete_greeks,
     parse_ts,
@@ -40,6 +41,7 @@ NULL_GREEKS = ["SPY260918C00500000", "SPY260918C00780000"]
 NO_BID = ["SPY260918C00780000", "SPY260918P00470000"]
 STALE = ["SPY260918C00655000"]
 NO_SNAPSHOT = ["SPY260918C00700000"]
+NO_ASK = ["SPY260918C00760000"]
 
 
 # ---------------------------------------------------------------------------
@@ -129,6 +131,14 @@ def test_gb_s_f03_defect_cases_are_actually_defective(snapshots, as_of, threshol
         assert has_complete_greeks(snapshot, required_greeks)
         assert has_bid(snapshot)
         assert 0 <= quote_age_seconds(snapshot, as_of) <= budget
+
+    for symbol in NO_ASK:
+        snapshot = snapshots[symbol]
+        assert not has_ask(snapshot), f"{symbol} should have no ask"
+        # The mirror trap: a live bid must not rescue it.
+        assert has_bid(snapshot), f"{symbol} should still show a bid (one-sided)"
+        assert has_complete_greeks(snapshot, required_greeks)
+        assert quote_age_seconds(snapshot, as_of) <= budget
 
     # P00470000 isolates missing_bid: greeks complete, quote fresh.
     isolated = snapshots["SPY260918P00470000"]
@@ -318,3 +328,28 @@ def test_gb_s_12_accepted_contracts_carry_leg_fields(
         assert fields["option_type"] in ("call", "put")
         assert isinstance(fields["strike"], (int, float)), "strike must be numeric"
         assert re.match(r"^\d{4}-\d{2}-\d{2}$", fields["expiry"])
+
+
+@requires_screener
+def test_gb_s_13_rejects_missing_ask(
+    contracts_body, snapshots_body, as_of, thresholds
+):
+    """GB-S-13: a contract with no ask is REJECTED, with `missing_ask`.
+
+    The mirror of GB-S-02, and not mere symmetry: `thresholds` requires a
+    TWO-SIDED quote, and a vertical BUYS a leg, so an absent offer is
+    un-executable on the long side. C00760000 isolates it — complete greeks,
+    fresh quote, a real bid — so `missing_ask` is the only thing standing
+    between it and acceptance, and it must be rejected under its OWN code
+    rather than mislabelled as `missing_bid` (GB_INTERFACES.md shape 6,
+    DECIDED 2026-09-02).
+    """
+    accepted, rejected = run_screener(contracts_body, snapshots_body, as_of, thresholds)
+    for symbol in NO_ASK:
+        quote = snapshots_body["snapshots"][symbol]["latestQuote"]
+        assert quote["ap"] == 0 and quote["as"] == 0, "fixture drift"
+        assert quote["bp"] > 0 and quote["bs"] > 0, "fixture drift"
+        assert symbol not in symbols_of(accepted)
+        assert reasons_for(rejected, symbol) == {"missing_ask"}, (
+            f"{symbol}: zero ask must read as missing, under its own reason code"
+        )

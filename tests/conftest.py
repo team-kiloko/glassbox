@@ -4,12 +4,12 @@ The screener module has not landed yet. Everything here is written so that the
 suite COLLECTS and RUNS today: fixture-integrity criteria pass now, screener
 behaviour criteria xfail until the module exists.
 
-PROPOSED INTERFACE — not in GB_INTERFACES.md.
-GB_INTERFACES.md is frozen pre-sign-off and defines no screener shape (its five
-shapes start at NL intent and never cover chain screening). Rather than write
-into a frozen seam, the contract below is proposed here and shaped so its output
-drops straight into GB_INTERFACES.md shape #2 `legs[]` (option_type/strike/expiry).
-It needs human sign-off before any non-test code depends on it.
+SIGNED INTERFACE — GB_INTERFACES.md shape 6.
+This contract was proposed here pre-sign-off; it was lifted into the seam and
+GB_INTERFACES.md is IN FORCE as of 2026-09-02. The seam is the authority: the
+text below restates shape 6 and must not drift from it. Accepted entries are
+shaped to drop straight into shape 2 `legs[]`
+(`symbol` / `option_type` / `strike` / `expiry`).
 
     screen_chain(contracts, snapshots, as_of, thresholds) -> result
 
@@ -138,6 +138,23 @@ def has_bid(snapshot):
     if bid_price is None or bid_size is None:
         return False
     return bid_price > 0 and bid_size > 0
+
+
+def has_ask(snapshot):
+    """True only if a real, takeable ask exists.
+
+    The mirror of has_bid: ap == 0 / as == 0 is Alpaca's representation of NO
+    ASK. It matters on its own because a vertical BUYS a leg — a missing ask is
+    un-executable on the long side (GB_INTERFACES.md shape 6, `missing_ask`).
+    """
+    quote = snapshot.get("latestQuote")
+    if not quote:
+        return False
+    ask_price = quote.get("ap")
+    ask_size = quote.get("as")
+    if ask_price is None or ask_size is None:
+        return False
+    return ask_price > 0 and ask_size > 0
 
 
 def has_complete_greeks(snapshot, required):

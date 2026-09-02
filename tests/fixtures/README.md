@@ -17,7 +17,7 @@ Snapshot `as_of`: **2026-08-28T19:55:00Z** (Friday, 15:55 ET — five minutes be
 | `thresholds.PROPOSED.json` | the screener config the fixtures were built against — **PROPOSED, uncalibrated** |
 | `expected_verdicts.json` | the golden accept/reject outcome per symbol |
 
-## The slice: 7 contracts, 2 accept, 5 reject
+## The slice: 8 contracts, 2 accept, 6 reject
 
 | Symbol | Case | Greeks | Quote | Age vs `as_of` | Expected |
 |--------|------|--------|-------|----------------|----------|
@@ -28,6 +28,7 @@ Snapshot `as_of`: **2026-08-28T19:55:00Z** (Friday, 15:55 ET — five minutes be
 | `SPY260918P00470000` | deep OTM put | complete | **no bid**, 0.03 ask | 47 s | reject `missing_bid` |
 | `SPY260918C00655000` | **stale** | complete | 3.41 x 3.49, looks healthy | **8208 s** | reject `stale_quote` |
 | `SPY260918C00700000` | **absent from snapshots** | — | — | — | reject `no_snapshot` |
+| `SPY260918C00760000` | far OTM, offer pulled | complete | 0.04 bid, **no ask** | 25 s | reject `missing_ask` |
 
 Each rejection isolates one defect, except `C00780000`, which carries both by
 design (the HANDOFF quirk note pairs null greeks with illiquid strikes).
@@ -39,18 +40,25 @@ design (the HANDOFF quirk note pairs null greeks with illiquid strikes).
    and proceeds will price a spread off a bid that does not exist. `P00470000`
    isolates this: its greeks are complete and its quote is fresh, so `missing_bid`
    is the *only* thing standing between it and acceptance.
-2. **A stale quote looks perfectly healthy field-by-field.** `C00655000` has complete
+2. **`ap: 0, as: 0` is a MISSING ask, and it needs its OWN code.** The mirror of
+   trap 1, and not mere symmetry: `thresholds.PROPOSED.json` requires a *two-sided*
+   quote, and a vertical **buys** a leg, so an absent offer is un-executable on the
+   long side. `C00760000` isolates this — complete greeks, fresh quote, a real
+   0.04 bid — so `missing_ask` is the *only* thing standing between it and
+   acceptance. Rejecting it as `missing_bid` is a mislabel, and accepting it
+   because "there's a quote" is the bug.
+3. **A stale quote looks perfectly healthy field-by-field.** `C00655000` has complete
    greeks and a tight two-sided quote. Only the timestamp betrays it. Freshness must
    be checked against `as_of`, never against wall-clock at read time.
-3. **Null greeks are `null`, not zero and not absent.** `greeks: null` with
+4. **Null greeks are `null`, not zero and not absent.** `greeks: null` with
    `impliedVolatility: null` alongside. Do not conflate with a greek that is
    legitimately ~0 (see `P00470000`, `gamma: 0.0001`).
-4. **A contract can exist with no snapshot at all.** The snapshots endpoint may omit
+5. **A contract can exist with no snapshot at all.** The snapshots endpoint may omit
    symbols. Absence is a reject, not a skip and not a retry-until-present.
-5. **Numerics are STRINGS on the contracts endpoint** (`strike_price`, `open_interest`,
+6. **Numerics are STRINGS on the contracts endpoint** (`strike_price`, `open_interest`,
    `multiplier`, `close_price`) and **floats on the snapshots endpoint**. Anything
    comparing a strike across the two without a cast is silently wrong.
-6. **Timestamps are RFC3339 with nanosecond precision.** Python's `datetime` parses
+7. **Timestamps are RFC3339 with nanosecond precision.** Python's `datetime` parses
    at microsecond resolution; truncate deliberately rather than letting a parser fail.
 
 ## Not covered here (deliberate)
@@ -62,6 +70,21 @@ design (the HANDOFF quirk note pairs null greeks with illiquid strikes).
   Nothing in the suite asserts on them, and the screener should not depend on them.
 - Open-interest and volume floors. Those are calibration decisions, not fail-closed
   correctness, so no threshold for them is proposed yet.
+
+## Reason-code vocabulary — the seam is the authority
+
+The five codes `null_greeks | missing_bid | missing_ask | stale_quote |
+no_snapshot` are **`DECIDED (2026-09-02)` in `GB_INTERFACES.md` shape 6**, which is
+SIGNED and IN FORCE. These fixtures **mirror** the seam; they never define it. If
+the two ever disagree, the seam wins and the fixtures are the thing that is wrong.
+
+The sign-off commit left a known gap — the seam named five codes while
+`expected_verdicts.json` named four, because the `missing_ask` counter-fixture was
+teakeycee's to land as screener lead. **That gap is closed as of this commit:** the
+fixture (`C00760000`), the golden verdict, and GB-S-13 are here, and
+`expected_verdicts.json` now names all five. The seam's own "Not yet in the
+fixtures" note under shape 6 is therefore stale, but the seam changes only by both
+humans' agreement — it is flagged in HANDOFF, not edited here.
 
 ## Status
 
