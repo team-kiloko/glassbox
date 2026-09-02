@@ -1,0 +1,198 @@
+{
+  "_status": "GOLDEN — the expected governor verdict for each case.",
+  "_note": "Rule names are the pinned core vocabulary of GB_INTERFACES.md shape 3a, which is the authority, plus non-seam checks under the agreed `x_` prefix. `approved` is true only when every check passed. `computed_max_loss` is the governor's OWN figure in dollars (multiplier and qty applied); null means the check did not produce one — either the structure has no standalone cap (covered_call) or a gate failed and the risk band was not evaluated.",
+
+  "config_version": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+
+  "rule_vocabulary": {
+    "core": ["structure_valid", "net_reconciles", "max_loss_cap", "coverage",
+             "cash_floor", "churn_guard", "market_open"],
+    "extensions": ["x_position_cap"]
+  },
+
+  "gates": ["structure_valid", "net_reconciles"],
+  "risk_band": ["max_loss_cap", "coverage", "cash_floor"],
+
+  "cases": {
+
+    "covered_call_approved": {
+      "proposal": "covered_call_ok", "account": "composed_covered_ready",
+      "clock": "open", "mode": "approve",
+      "approved": true, "computed_max_loss": null,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": true, "cash_floor": true, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "100 unreserved shares behind one short 660 call; premium raises cash."
+    },
+
+    "cash_secured_put_approved": {
+      "proposal": "cash_secured_put_ok", "account": "composed_cash_ready",
+      "clock": "open", "mode": "approve",
+      "approved": true, "computed_max_loss": 61590.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": true, "cash_floor": true, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "(620 - 4.10) * 100 * 1 = 61590 under the 62500 cap; 62000 collateral available."
+    },
+
+    "debit_vertical_approved": {
+      "proposal": "debit_vertical_ok", "account": "composed_flat",
+      "clock": "open", "mode": "autopilot",
+      "approved": true, "computed_max_loss": 430.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": true, "cash_floor": true, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "Debit 4.30 * 100 * 1 = 430 under the 500 cap. Carries mode=autopilot to prove passthrough."
+    },
+
+    "credit_vertical_approved": {
+      "proposal": "credit_vertical_ok", "account": "composed_flat",
+      "clock": "open", "mode": "approve",
+      "approved": true, "computed_max_loss": 325.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": true, "cash_floor": true, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "(5 wide - 1.75 credit) * 100 * 1 = 325 under the 500 cap."
+    },
+
+    "iron_condor_rejected_out_of_enum": {
+      "proposal": "iron_condor_out_of_enum", "account": "composed_flat",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": null,
+      "checks": { "structure_valid": false, "net_reconciles": true, "max_loss_cap": false,
+                  "coverage": false, "cash_floor": false, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "A1 Option B: iron_condor is not in the enum and never crosses the seam as one structure. Its arithmetic still reconciles; the risk band is not evaluated."
+    },
+
+    "lone_short_leg_rejected": {
+      "proposal": "lone_short_declared_vertical", "account": "composed_flat",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": null,
+      "checks": { "structure_valid": false, "net_reconciles": true, "max_loss_cap": false,
+                  "coverage": false, "cash_floor": false, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "THE naked-short trap (2e). One short call labelled vertical_spread has no long wing."
+    },
+
+    "ratio_gcd_rejected": {
+      "proposal": "ratio_gcd_two", "account": "composed_flat",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": null,
+      "checks": { "structure_valid": false, "net_reconciles": true, "max_loss_cap": false,
+                  "coverage": false, "cash_floor": false, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "C2: ratio_qty must be positive integers with GCD 1. 2:2 is the same spread, not in simplest form."
+    },
+
+    "net_mismatch_rejected": {
+      "proposal": "net_mismatch_qty_factor", "account": "composed_flat",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": null,
+      "checks": { "structure_valid": true, "net_reconciles": false, "max_loss_cap": false,
+                  "coverage": false, "cash_floor": false, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "C1: legs give 4.60 per share; the proposal reports 9.20, which is 4.60 * qty. Risk math must not run on unreconciled numbers."
+    },
+
+    "false_claim_rejected_by_computed_figure": {
+      "proposal": "false_claim_debit_vertical", "account": "composed_flat",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": 819.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": false,
+                  "coverage": true, "cash_floor": true, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "THE false-claim fixture (SETUP.md 4.4). claimed_max_loss=200 would have passed the 500 cap; the computed 819 does not. Trusting the claim approves a trade the governor must refuse."
+    },
+
+    "csp_over_cap_rejected": {
+      "proposal": "csp_over_cap", "account": "composed_cash_ready",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": 62995.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": false,
+                  "coverage": true, "cash_floor": true, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "(635 - 5.05) * 100 * 1 = 62995 over the 62500 cap, with collateral comfortably available."
+    },
+
+    "covered_call_double_claim_rejected": {
+      "proposal": "covered_call_ok", "account": "composed_shares_fully_reserved",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": null,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": false, "cash_floor": true, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "100 shares held but all 100 already reserved against an open short call. Two covered calls cannot claim the same 100 shares."
+    },
+
+    "csp_coverage_rejected": {
+      "proposal": "cash_secured_put_ok", "account": "composed_cash_short",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": 61590.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": false, "cash_floor": false, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "62000 collateral needed, 42000 unreserved (62000 cash less 20000 already reserved). Cash floor fails with it — an uncollateralised put breaches both."
+    },
+
+    "vertical_buying_power_rejected": {
+      "proposal": "debit_vertical_ok", "account": "composed_buying_power_short",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": 430.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": false, "cash_floor": true, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "Buying power 300 does not cover the computed 430 max loss. Cash floor still passes, so coverage is isolated."
+    },
+
+    "cash_floor_rejected": {
+      "proposal": "cash_secured_put_ok", "account": "composed_cash_thin",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": 61590.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": true, "cash_floor": false, "churn_guard": true,
+                  "market_open": true, "x_position_cap": true },
+      "why": "Collateral is available (65000 >= 62000) but post-trade free cash 3410 is under the 13000 floor. Coverage passing is what isolates cash_floor."
+    },
+
+    "churn_window_rejected": {
+      "proposal": "debit_vertical_ok", "account": "composed_churn_recent",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": 430.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": true, "cash_floor": true, "churn_guard": false,
+                  "market_open": true, "x_position_cap": true },
+      "why": "Last open on SPY was 600 s ago, inside the 3600 s re-entry window."
+    },
+
+    "min_hold_rejected": {
+      "proposal": "debit_vertical_ok", "account": "composed_min_hold_recent",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": 430.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": true, "cash_floor": true, "churn_guard": false,
+                  "market_open": true, "x_position_cap": true },
+      "why": "The open SPY position is 5400 s old: past the 3600 s churn window but short of the 7200 s min hold. The two limits are deliberately separable."
+    },
+
+    "market_closed_rejected": {
+      "proposal": "debit_vertical_ok", "account": "composed_flat_overnight",
+      "clock": "closed", "mode": "approve",
+      "approved": false, "computed_max_loss": 430.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": true, "cash_floor": true, "churn_guard": true,
+                  "market_open": false, "x_position_cap": true },
+      "why": "6c: screening and proposing run at any time; submission is gated on market_open. Every other check is still computed and recorded."
+    },
+
+    "position_cap_rejected": {
+      "proposal": "debit_vertical_ok", "account": "composed_at_position_cap",
+      "clock": "open", "mode": "approve",
+      "approved": false, "computed_max_loss": 430.00,
+      "checks": { "structure_valid": true, "net_reconciles": true, "max_loss_cap": true,
+                  "coverage": true, "cash_floor": true, "churn_guard": true,
+                  "market_open": true, "x_position_cap": false },
+      "why": "SPY already holds 2 open positions against a per-underlying cap of 2. Position caps are not seam vocabulary, so the check rides the agreed x_ prefix (3a)."
+    }
+  }
+}

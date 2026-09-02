@@ -1,0 +1,133 @@
+{
+  "_status": "GOLDEN inputs — account state per GB_INTERFACES.md shape 2b.",
+  "_note": "Two kinds live here and they are NOT interchangeable. `raw_*` entries are the DATA LAYER's output: raw broker state, no reservations, per A2 (b) — the data layer is a dumb honest reporter. `composed_*` entries are the GOVERNOR's composed view: the same raw state plus reservations and activity the governor derives from the provenance ledger. The governor requires a composed view; handing it a raw one is a caller error, not a rejection (see README).",
+
+  "account_states": {
+
+    "raw_broker_state": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 100000.00,
+      "buying_power": 100000.00,
+      "positions": { "SPY": { "shares": 100 } }
+    },
+
+    "composed_covered_ready": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 100000.00,
+      "buying_power": 100000.00,
+      "reserved_cash": 0.00,
+      "positions": { "SPY": { "shares": 100, "reserved_shares": 0 } },
+      "ledger": { "open_positions": {}, "recent_activity": {} }
+    },
+
+    "composed_shares_fully_reserved": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 100000.00,
+      "buying_power": 100000.00,
+      "reserved_cash": 0.00,
+      "positions": { "SPY": { "shares": 100, "reserved_shares": 100 } },
+      "ledger": {
+        "open_positions": { "SPY": 1 },
+        "recent_activity": { "SPY": { "last_open_at": "2026-08-30T15:00:00Z",
+                                      "position_opened_at": "2026-08-30T15:00:00Z" } }
+      }
+    },
+
+    "composed_cash_ready": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 100000.00,
+      "buying_power": 100000.00,
+      "reserved_cash": 0.00,
+      "positions": {},
+      "ledger": { "open_positions": {}, "recent_activity": {} }
+    },
+
+    "composed_cash_short": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 62000.00,
+      "buying_power": 62000.00,
+      "reserved_cash": 20000.00,
+      "positions": {},
+      "ledger": {
+        "open_positions": { "QQQ": 1 },
+        "recent_activity": { "QQQ": { "last_open_at": "2026-08-30T15:00:00Z",
+                                      "position_opened_at": "2026-08-30T15:00:00Z" } }
+      }
+    },
+
+    "composed_cash_thin": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 65000.00,
+      "buying_power": 65000.00,
+      "reserved_cash": 0.00,
+      "positions": {},
+      "ledger": { "open_positions": {}, "recent_activity": {} }
+    },
+
+    "composed_buying_power_short": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 50000.00,
+      "buying_power": 300.00,
+      "reserved_cash": 0.00,
+      "positions": {},
+      "ledger": { "open_positions": {}, "recent_activity": {} }
+    },
+
+    "composed_flat": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 100000.00,
+      "buying_power": 100000.00,
+      "reserved_cash": 0.00,
+      "positions": { "SPY": { "shares": 100, "reserved_shares": 0 } },
+      "ledger": { "open_positions": {}, "recent_activity": {} }
+    },
+
+    "composed_flat_overnight": {
+      "as_of": "2026-09-02T01:00:00Z",
+      "cash": 100000.00,
+      "buying_power": 100000.00,
+      "reserved_cash": 0.00,
+      "positions": { "SPY": { "shares": 100, "reserved_shares": 0 } },
+      "ledger": { "open_positions": {}, "recent_activity": {} }
+    },
+
+    "composed_churn_recent": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 100000.00,
+      "buying_power": 100000.00,
+      "reserved_cash": 0.00,
+      "positions": {},
+      "ledger": {
+        "open_positions": { "SPY": 1 },
+        "recent_activity": { "SPY": { "last_open_at": "2026-09-02T15:20:00Z",
+                                      "position_opened_at": null } }
+      }
+    },
+
+    "composed_min_hold_recent": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 100000.00,
+      "buying_power": 100000.00,
+      "reserved_cash": 0.00,
+      "positions": {},
+      "ledger": {
+        "open_positions": { "SPY": 1 },
+        "recent_activity": { "SPY": { "last_open_at": "2026-09-02T14:00:00Z",
+                                      "position_opened_at": "2026-09-02T14:00:00Z" } }
+      }
+    },
+
+    "composed_at_position_cap": {
+      "as_of": "2026-09-02T15:30:00Z",
+      "cash": 100000.00,
+      "buying_power": 100000.00,
+      "reserved_cash": 0.00,
+      "positions": {},
+      "ledger": {
+        "open_positions": { "SPY": 2 },
+        "recent_activity": { "SPY": { "last_open_at": "2026-09-01T15:00:00Z",
+                                      "position_opened_at": "2026-09-01T15:00:00Z" } }
+      }
+    }
+  }
+}

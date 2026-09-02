@@ -1,8 +1,14 @@
-"""Shared loading + the PROPOSED screener seam for the chain-screener contract suite.
+"""Shared loading and helpers for the GlassBox contract suites.
 
-The screener module has not landed yet. Everything here is written so that the
-suite COLLECTS and RUNS today: fixture-integrity criteria pass now, screener
-behaviour criteria xfail until the module exists.
+Two suites live here, built to the same pattern:
+
+  GB-S  chain screener   — GB_INTERFACES.md shape 6
+  GB-C  governor         — GB_INTERFACES.md shape 3 (+ 2, 2b, 3a)
+
+Each suite has a fixture-integrity band that runs today and guards the golden
+data, and a behaviour band that is strict-xfail until its module lands and then
+arms itself automatically. Nothing here reaches for a module that does not exist
+yet, so the suites always COLLECT and RUN.
 
 SIGNED INTERFACE — GB_INTERFACES.md shape 6.
 This contract was proposed here pre-sign-off; it was lifted into the seam and
@@ -37,36 +43,51 @@ import pytest
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
+#: OCC contract symbol, e.g. SPY260918C00640000. One definition, both suites:
+#: a second copy is a second thing to drift.
+OCC = re.compile(r"^(?P<root>[A-Z]{1,6})(?P<yy>\d{2})(?P<mm>\d{2})(?P<dd>\d{2})"
+                 r"(?P<cp>[CP])(?P<strike>\d{8})$")
+
 # Candidate import paths, in preference order. The module author picks one; the
-# suite does not care which, and this list is the only thing that needs editing.
+# suite does not care which, and these lists are the only thing that needs editing.
 _SCREENER_CANDIDATES = ("glassbox.screener", "screener")
+_GOVERNOR_CANDIDATES = ("glassbox.governor", "governor")
 
 
-def _import_screener():
-    """Return (module, None) once the screener lands, else (None, reason)."""
+def _import_module(candidates, entry_point):
+    """Return (module, None) once the module lands, else (None, reason)."""
     tried = []
-    for path in _SCREENER_CANDIDATES:
+    for path in candidates:
         try:
-            mod = __import__(path, fromlist=["screen_chain"])
+            mod = __import__(path, fromlist=[entry_point])
         except ImportError:
             tried.append(path)
             continue
-        if not hasattr(mod, "screen_chain"):
-            return None, f"{path} imported but exposes no screen_chain()"
+        if not hasattr(mod, entry_point):
+            return None, f"{path} imported but exposes no {entry_point}()"
         return mod, None
-    return None, "no screener module found (tried: " + ", ".join(tried) + ")"
+    return None, "not found (tried: " + ", ".join(tried) + ")"
 
 
-SCREENER, SCREENER_MISSING_REASON = _import_screener()
+SCREENER, SCREENER_MISSING_REASON = _import_module(_SCREENER_CANDIDATES, "screen_chain")
 SCREENER_MISSING = SCREENER is None
 
-#: Attach to any test that exercises the screener itself. Once the module lands
-#: the condition goes False, the marker deactivates, and the test runs for real.
-#: strict=True so a test that "passes" without a screener is reported as a
+GOVERNOR, GOVERNOR_MISSING_REASON = _import_module(_GOVERNOR_CANDIDATES, "govern")
+GOVERNOR_MISSING = GOVERNOR is None
+
+#: Attach to any test that exercises the module itself. Once it lands the
+#: condition goes False, the marker deactivates, and the test runs for real.
+#: strict=True so a test that "passes" without the module is reported as a
 #: failure rather than quietly counting as coverage.
 requires_screener = pytest.mark.xfail(
     SCREENER_MISSING,
     reason=f"chain screener has not landed yet: {SCREENER_MISSING_REASON}",
+    strict=True,
+)
+
+requires_governor = pytest.mark.xfail(
+    GOVERNOR_MISSING,
+    reason=f"governor has not landed yet: {GOVERNOR_MISSING_REASON}",
     strict=True,
 )
 
@@ -193,3 +214,132 @@ def reasons_for(rejected, symbol):
             raw = entry["reasons"] if isinstance(entry, dict) else entry.reasons
             return set(raw)
     return None
+
+
+# ---------------------------------------------------------------------------
+# GB-C — governor
+# ---------------------------------------------------------------------------
+
+GOV_FIXTURES = FIXTURES / "governor"
+
+#: The pinned core checks[] vocabulary, GB_INTERFACES.md 3a. Renaming or removing
+#: one of these is a seam change; extras ride an x_ prefix.
+CORE_RULES = (
+    "structure_valid",
+    "net_reconciles",
+    "max_loss_cap",
+    "coverage",
+    "cash_floor",
+    "churn_guard",
+    "market_open",
+)
+
+
+def _load_gov(name):
+    with (GOV_FIXTURES / name).open() as fh:
+        return json.load(fh)
+
+
+@pytest.fixture(scope="session")
+def gov_thresholds():
+    return _load_gov("thresholds.governor.PROPOSED.json")
+
+
+@pytest.fixture(scope="session")
+def proposals():
+    return _load_gov("proposals.json")["proposals"]
+
+
+@pytest.fixture(scope="session")
+def account_states():
+    return _load_gov("account_states.json")["account_states"]
+
+
+@pytest.fixture(scope="session")
+def clocks():
+    return _load_gov("clocks.json")["clocks"]
+
+
+@pytest.fixture(scope="session")
+def gov_golden():
+    return _load_gov("expected_verdicts.json")
+
+
+@pytest.fixture(scope="session")
+def gov_config_version(gov_golden):
+    return gov_golden["config_version"]
+
+
+def run_governor(proposal, account_state, clock, thresholds, mode, config_version):
+    """Call the seam shape 3 entry point and sanity-check the envelope."""
+    verdict = GOVERNOR.govern(
+        proposal,
+        account_state,
+        clock,
+        thresholds=thresholds,
+        mode=mode,
+        config_version=config_version,
+    )
+    assert isinstance(verdict, dict), "the verdict is a mapping per seam shape 3"
+    for key in ("approved", "mode", "config_version", "checks", "reason"):
+        assert key in verdict, f"verdict missing {key} (seam shape 3)"
+    return verdict
+
+
+def run_case(case, proposals_map, accounts_map, clocks_map, thresholds, config_version):
+    """Run one golden case by name-references, exactly as the golden file states it."""
+    return run_governor(
+        proposals_map[case["proposal"]],
+        accounts_map[case["account"]],
+        clocks_map[case["clock"]],
+        thresholds,
+        case["mode"],
+        config_version,
+    )
+
+
+def checks_map(verdict):
+    """{rule: passed} — asserts rules are unique, since a duplicate hides a verdict."""
+    rules = [c["rule"] for c in verdict["checks"]]
+    assert len(rules) == len(set(rules)), f"duplicate rule in checks[]: {rules}"
+    return {c["rule"]: c["passed"] for c in verdict["checks"]}
+
+
+def detail_for(verdict, rule):
+    for check in verdict["checks"]:
+        if check["rule"] == rule:
+            return check["detail"]
+    return None
+
+
+def detail_fields(detail):
+    """Parse the seam's `k=v` detail convention into a mapping.
+
+    Shape 3's own example is `computed_max_loss=250.00 vs cap=500.00`: key=value
+    tokens with prose between them. Bare words are ignored so the detail stays
+    readable to a human and parseable by the dashboard and this suite.
+    """
+    fields = {}
+    for token in (detail or "").split():
+        if "=" in token:
+            key, _, value = token.partition("=")
+            fields[key] = value
+    return fields
+
+
+def money(value):
+    """Parse a money field out of a detail string."""
+    return None if value is None or value == "null" else float(value)
+
+
+def net_from_legs(proposal):
+    """The C1 reconciliation rule, reimplemented independently for the F-band.
+
+    Per share, for ONE unit of the spread. `qty` is NOT a factor and must not
+    appear in this sum.
+    """
+    total = 0.0
+    for leg in proposal["legs"]:
+        sign = 1 if leg["action"] == "buy" else -1
+        total += sign * leg["limit_price"] * leg["ratio_qty"]
+    return round(total, 6)

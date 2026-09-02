@@ -22,6 +22,7 @@ import re
 import pytest
 
 from conftest import (
+    OCC,
     has_ask,
     has_bid,
     has_complete_greeks,
@@ -32,9 +33,6 @@ from conftest import (
     run_screener,
     symbols_of,
 )
-
-OCC = re.compile(r"^(?P<root>[A-Z]{1,6})(?P<yy>\d{2})(?P<mm>\d{2})(?P<dd>\d{2})"
-                 r"(?P<cp>[CP])(?P<strike>\d{8})$")
 
 HEALTHY = ["SPY260918C00640000", "SPY260918P00635000"]
 NULL_GREEKS = ["SPY260918C00500000", "SPY260918C00780000"]
