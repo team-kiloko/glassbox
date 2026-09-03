@@ -16,6 +16,95 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-03 08:26 UTC - Jhoosier - CLOSE
+
+- **Changed — four commits, submission assets; no module across the seam
+  touched.**
+  1. **`Audit dashboard: app/dashboard.py on Streamlit, GB-X contract suite`
+     (`d557a69`).** `app/dashboard.py` reads a ledger JSONL through
+     `glassbox.ledger.load / list_roots / fold_chain / current_status` only —
+     never by adjacency, `partial_fill` never terminal. Three views: one row
+     per root (folded status, structure, underlying, qty, `claimed_max_loss`
+     beside the governor's `computed_max_loss`, the three versions); a root's
+     chain timeline plus `checks[]` rendered generically — the seven core seam
+     names labelled `core`, `x_position_cap` / `x_max_expiry` /
+     `x_total_open_risk` labelled `x_ extension`, and a rule name the dashboard
+     has never seen still renders with the same columns (GB-X-07); and the HERO
+     pair — approved root and `governor_rejected` twin under the same
+     `config_version` and `as_of` second, the rejected one's
+     `computed_max_loss=152584.00 vs cap=2000.00` beside
+     `claimed_max_loss=250.00` and `claim_divergence=152334.00`, parsed from
+     `verdict.reason` and never recomputed. **Replay** resolves the thresholds
+     file by CONTENT HASH of every `*.json` under `config/` and
+     `tests/fixtures/governor/`, so the competition roots replay under
+     `config/thresholds.competition.json` (all four `matched=True`, verified in
+     the browser) and the two oldest dev roots — decided under
+     `sha256:8eb24128…`, a file that no longer exists at this commit — are
+     reported *un-replayable* rather than replayed under something else.
+     Read-only; no network. `tests/test_dashboard_contract.py` GB-X-01..16 (20
+     tests with the two-ledger parametrisation) holds the pure functions to both
+     committed demo ledgers. `app/README.md` has the run command and the
+     Community Cloud deploy steps. **`requirements.txt`: `streamlit==1.63.0`
+     plus its transitive pins from `pip freeze`; `websockets` re-pinned 17.1 ->
+     16.1.1** because streamlit requires `<17` and alpaca-py accepts it — `pip
+     check` clean, full suite unchanged. No other new direct dependency.
+  2. **`Write-up: docs/WRITEUP.md` (`fb08955`).** 690 words of body. AI logic /
+     risk gates / Alpaca infrastructure, every number from the repo. It says the
+     scored run's proposals came from the rules-based builder with
+     `prompt_version` null and places MCP in the strategist path it is designed
+     for — **teakeycee, please check that framing reads as honest to you**, and
+     the risk-gates section against the governor after today.
+  3. **`Submission text` (`d4dcee1`).** `docs/SUBMISSION_TEXT.md`: title (50
+     chars, at the limit), short (226), long (~240 words), tags. SUBMISSION.md
+     rows 1-4, 6, 7 and 12 now point at the drafts.
+  4. **`Video script and deck outline` (`c0b9656`).** `docs/VIDEO_SCRIPT.md`
+     (4:30 target, exact shot list; hero = `20260902T150903Z-f6d2bb6ef6`
+     replayed beside `20260902T150903Z-973c931c1d`) and `docs/DECK_OUTLINE.md`
+     (8 slides, one line each). No PDF/PPTX built. **Video length limit is
+     UNVERIFIED** — `lablab.ai/hackathon-rules` returns 403 to automated
+     fetches; the 5-minute figure is the guidelines article's.
+  - Data-layer branch `claude/jhoosier-data-layer-2evft4` is SUPERSEDED by
+    `glassbox/datafeed.py`; left on origin as a record, not merged;
+    `jho/data-layer` deleted by Jay. Full suite on Jay's box: **169 passed, 1
+    skipped** before this session -> **189 passed, 1 skipped** after (GB-X 20
+    added; nothing else changed). Live band `--live
+    tests/test_datafeed_contract.py` on Jay's box with dev keys, before the
+    session: **30 passed in 1.18s**. Streamlit Community Cloud account exists
+    (Jhoosier); deploy waits on the repo going public (SUBMISSION row 8).
+- **Item 5, the churn fix (no code change; governor is yours).** I agree with
+  anchoring `min_hold` and the churn window on the ROOT entry's `ts`. It is the
+  decision time, 5a requires it to exist before the order does, and so it is
+  present on every risk-bearing chain including one that never filled — a fill
+  timestamp exists on only some of them and would leave an `approved_pending`
+  or `submitted` chain with no anchor at all, which is exactly the state the
+  guard most needs to see. The cost is that an order that sat unfilled for a
+  while "ages" from its decision rather than its fill, so a position could be
+  released a few seconds or minutes earlier than a fill-anchored hold would
+  allow; on a 7,200-second hold against 90-second order follow that is noise,
+  and it errs on the side that a canceled follow-up releases the underlying
+  explicitly rather than by a missing field. GB-C-30 stays where it is.
+- **Frozen:** `config/thresholds.competition.json` (content hash
+  `sha256:0066384c…` unchanged — GB-X-13/14 now also assert every competition
+  root resolves to it), `config/profiles.json`, the two scored positions,
+  `tests/fixtures/governor/ledger_churn_case.jsonl`, `GB_INTERFACES.md`,
+  `glassbox/screener.py`, `governor.py`, `ledger.py`, `demo/*.jsonl` — all
+  unchanged by this session. Dev account: not touched; no script that reaches
+  the network was run.
+- **Blocked:** teakeycee's scored-session outcome (ledger +
+  `demo/ledger_competition_sample.jsonl` rebuild) before the video can be
+  recorded against final numbers; the repo going public before the Application
+  URL exists.
+- **Attack next (teakeycee):** (1) after your session, rebuild the competition
+  sample via `scripts/scrub_ledger.py` and push, then run `streamlit run
+  app/dashboard.py` against it and tell me if any check name renders badly —
+  the GB-X suite will also tell you if the rebuilt sample's pairs or replay
+  drift; (2) review `docs/WRITEUP.md` risk-gates section for accuracy against
+  the governor as it stands after today, and the `prompt_version`-null framing
+  in AI logic; (3) decide the public-repo flip time so the Streamlit URL can
+  land before the 09-04 submission.
+
+---
+
 ### 2026-09-02 16:20 UTC - teakeycee - ADDENDUM (calibration; one real bug found)
 
 Short block. The CLOSE below still stands; this adds one document and one code
