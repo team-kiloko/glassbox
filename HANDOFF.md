@@ -16,6 +16,53 @@ Copy the block below, fill it in, and put the **newest on top**. Four fields, al
 
 ---
 
+### 2026-09-04 13:25 UTC - Jhoosier - CLOSE (submission day)
+
+- **Changed — submission assets shipped and the repo is PUBLIC.**
+  1. `docs/GlassBox_deck.pdf` (8 slides, one line each, from
+     `docs/DECK_OUTLINE.md`) and `docs/GlassBox_cover.png` (1920x1080, slide 7,
+     the refusal) — commit `dc8bec9`. Slide 8 and the outline now say "Japan
+     and the United States"; no city names in the working tree (they remain in
+     older commits and `docs/handoff_protocol.svg`, left as is).
+  2. **Video:** https://youtu.be/a8l7gqGZo3Q (unlisted, 4:46, 92 MB). Footage
+     is the real `app/dashboard.py` against the committed
+     `demo/ledger_competition_sample.jsonl` at `d557a69`, driven click-for-click
+     from the shot list in `docs/VIDEO_SCRIPT.md`; Jay's voiceover. The scored
+     sample was NOT rebuilt before recording (no push from teakeycee after
+     2026-09-02 16:20), so the numbers on screen are the 09-02 ones.
+  3. **Repo flipped public 2026-09-04** after the pre-flip checklist: no `.env`
+     or `.env.*` ever committed, `.env.example` placeholders only, no key-shaped
+     strings (Alpaca PK/AK, sk-, ghp_, AKIA, PEM blocks), no password/seed/TOTP
+     assignments anywhere in history, no key/vault files tracked, LICENSE MIT.
+     Both account IDs in the tree are intentional disclosures: `PA3424LCNZBS`
+     (competition, required) and `PA34K04ZYHYO` (dev, in profiles/HANDOFF/
+     calibration). Stranger quickstart verified from a clean clone: Python
+     3.12 venv, `pip install -r requirements.txt`, `pytest` -> 189 passed,
+     1 skipped.
+  4. **Application URL:** https://glassbox-audit.streamlit.app/ on Streamlit
+     Community Cloud, from `team-kiloko/glassbox@main`, `app/dashboard.py`,
+     Python 3.12, no secrets. Needed a GitHub org OAuth grant for Streamlit
+     (team-kiloko has third-party app restrictions on). `app/README.md` now
+     says 3.12+: `numpy==2.5.2` needs it and the build fails on 3.11.
+  5. `SUBMISSION.md` rows 5-8 and 10 updated; `.gitignore` ignores
+     `Claude outputs/`.
+  - Tests: unchanged, 189 passed, 1 skipped. No module across the seam touched.
+- **Frozen:** `config/thresholds.competition.json`, `config/profiles.json`,
+  `GB_INTERFACES.md`, `glassbox/screener.py`, `governor.py`, `ledger.py`,
+  `demo/*.jsonl`, `tests/fixtures/` — all unchanged. Dev account not touched;
+  nothing that reaches the network was run against any account.
+- **Blocked:** nothing on our side. Submission form filled by Jay before
+  15:00 UTC from `docs/SUBMISSION_TEXT.md`, `docs/WRITEUP.md`, the assets
+  above and `PA3424LCNZBS`.
+- **Attack next (teakeycee):** (1) if the scored session produced a ledger,
+  rebuild `demo/ledger_competition_sample.jsonl` via `scripts/scrub_ledger.py`
+  and push — Community Cloud redeploys from `main` automatically, so the live
+  dashboard will pick it up; GB-X will flag pair/replay drift first;
+  (2) review `docs/WRITEUP.md` risk-gates section (still unreviewed);
+  (3) leave the competition account as it stands — scoring read EOD Thursday.
+
+---
+
 ### 2026-09-03 08:26 UTC - Jhoosier - CLOSE
 
 - **Changed — four commits, submission assets; no module across the seam

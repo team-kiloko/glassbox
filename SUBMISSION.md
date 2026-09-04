@@ -11,12 +11,12 @@
 | 2 | Short description | Max 255 characters | DRAFT in docs/SUBMISSION_TEXT.md | 226 chars, checked |
 | 3 | Long description | Min 100 words | DRAFT in docs/SUBMISSION_TEXT.md | ~240 words |
 | 4 | Technology / category tags | Form picklist | DRAFT in docs/SUBMISSION_TEXT.md | Alpaca, MCP, options, Claude/agents, Streamlit |
-| 5 | Cover image | 16:9, PNG/JPG | TODO | |
-| 6 | Video presentation | Max 5 min, under 300MB | SCRIPT in docs/VIDEO_SCRIPT.md | Hero moment: the rejected root `20260902T150903Z-f6d2bb6ef6` replayed in the dashboard. Limit UNVERIFIED: lablab.ai/hackathon-rules 403s automated fetches; Jay confirms by hand. Record after the scored-session sample rebuild |
-| 7 | Slide presentation | PDF | OUTLINE in docs/DECK_OUTLINE.md | 8 slides, one line each; Jay builds the PDF |
-| 8 | Public GitHub repository | Public AT submission; MIT license | TODO | Flip only after secrets scan passes; LICENSE already in repo |
+| 5 | Cover image | 16:9, PNG/JPG | **DONE** `docs/GlassBox_cover.png` | 1920x1080, slide 7 of the deck (the refusal) |
+| 6 | Video presentation | Max 5 min, under 300MB | **DONE** https://youtu.be/a8l7gqGZo3Q (unlisted) | Hero moment: the rejected root `20260902T150903Z-f6d2bb6ef6` replayed in the dashboard. Limit UNVERIFIED: lablab.ai/hackathon-rules 403s automated fetches; Jay confirms by hand. Record after the scored-session sample rebuild |
+| 7 | Slide presentation | PDF | **DONE** `docs/GlassBox_deck.pdf` | 8 slides from docs/DECK_OUTLINE.md |
+| 8 | Public GitHub repository | Public AT submission; MIT license | **PUBLIC** https://github.com/team-kiloko/glassbox | Flipped 2026-09-04 after the full-history secrets scan passed (no .env ever committed, no key-shaped strings, placeholders only in .env.example; both account IDs are intentional disclosures) |
 | 9 | Demo application platform | Streamlit / Replit / Vercel | **Streamlit** | Decided 2026-09-02 by Jhoosier. Streamlit Community Cloud deploys from the public repo; account created |
-| 10 | Application URL | Live, judge-clickable | TODO | The audit dashboard on Streamlit Community Cloud. Needs the repo public (item 8) to deploy from it, so the URL lands on flip day; deploy from a private repo via Streamlit GitHub auth if we want it earlier |
+| 10 | Application URL | Live, judge-clickable | **LIVE** https://glassbox-audit.streamlit.app/ | The audit dashboard on Streamlit Community Cloud. Needs the repo public (item 8) to deploy from it, so the URL lands on flip day; deploy from a private repo via Streamlit GitHub auth if we want it earlier |
 | 11 | Alpaca paper account ID | The fresh competition account, $100,000 start, options Level 3 enabled at creation | **PA3424LCNZBS** | Created 2026-09-02 by Jhoosier on the bare team address. Keys in the vault (COMPETITION entry, separate from dev). Governor-pipeline orders only; no manual orders ever |
 | 12 | One-page write-up | AI logic, risk gates, Alpaca infrastructure | DRAFT in docs/WRITEUP.md | Every number sourced from the repo; teakeycee to review the risk-gates section (HANDOFF 2026-09-03) |
 

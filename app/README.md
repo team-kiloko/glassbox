@@ -41,11 +41,12 @@ is **public** (SUBMISSION.md row 8 — flip only after the secrets scan):
 
 1. Sign in at https://share.streamlit.io with the Jhoosier GitHub account.
 2. "New app" → repository `team-kiloko/glassbox`, branch `main`, main file
-   path `app/dashboard.py`. Python version: 3.11 or later.
+   path `app/dashboard.py`. Python version: **3.12 or later** (Advanced settings;
+   `numpy==2.5.2` in the pinned requirements needs 3.12, the build fails on 3.11).
 3. No secrets are needed. The app reads only committed files and never loads
    `.env`; leave the Secrets panel empty.
 4. The resulting `*.streamlit.app` URL is the Application URL for SUBMISSION.md
-   row 10.
+   row 10. Deployed 2026-09-04: https://glassbox-audit.streamlit.app/
 
 Deploying from a private repo is possible through Streamlit's GitHub
 authorisation if the URL is wanted before flip day, but the submission needs
