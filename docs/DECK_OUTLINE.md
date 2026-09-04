@@ -11,6 +11,6 @@ are for the PDF deliverable only and do not appear in the video.
 5. **The numbers.** 189 contract tests across 7 suites; 5 lots of a governed 763/758 SPY put vertical; computed max loss 2,067 on a 10,000 book cap; one refusal on the ledger, replayable.
 6. **Ten checks, every decision.** structure_valid · net_reconciles · max_loss_cap · coverage · cash_floor · churn_guard · market_open · x_position_cap · x_max_expiry · x_total_open_risk.
 7. **The refusal.** Claimed 250.00 · computed 152,584.00 · cap 2,000.00 · divergence 152,334.00 — refused on four checks, written down, replayed matched=True.
-8. **Two pods, one seam.** Tokyo and Minneapolis, coordinated only through the repo; GB_INTERFACES.md signed by both humans; pre-event work disclosed in the README.
+8. **Two pods, one seam.** Japan and the United States, coordinated only through the repo; GB_INTERFACES.md signed by both humans; pre-event work disclosed in the README.
 
 Cover image (SUBMISSION.md row 5) can be slide 7 rendered at 16:9.

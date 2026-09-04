@@ -27,3 +27,6 @@ data/
 Thumbs.db
 .vscode/
 .idea/
+
+# Claude desktop app session outputs
+Claude outputs/

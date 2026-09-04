@@ -2,7 +2,7 @@
 
 > The baton. Prepend a new dated block at the TOP of this file each work session.
 > READ THIS FIRST, before doing anything. Write your closing block LAST, before you stop.
-> Follow-the-sun: Tokyo's day ends as Minneapolis's begins — keep it current so the
+> Follow-the-sun: Jhoosier's day ends as Teakeycee's begins — keep it current so the
 > other pod can start cold, with no verbal context.
 
 ## How to use
